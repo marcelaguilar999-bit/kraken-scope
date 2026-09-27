@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+
+# Estado generado en ejecución
+servidor.log
+oi_historico.json
+oi_historico.json.lock
+.oi_historico.*.tmp
+
+# Entornos y herramientas locales
+.venv/
+venv/
+.pytest_cache/
+.coverage

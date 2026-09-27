@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kraken Scope</title>
+<style>
+  :root{
+    --fondo:#0e1117; --panel:#161b22; --borde:#262d38; --texto:#e6edf3;
+    --suave:#8b949e; --alza:#3fb950; --baja:#f85149; --acento:#58a6ff; --poc:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--texto);
+       font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+         padding:12px 16px;border-bottom:1px solid var(--borde);background:var(--panel)}
+  h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.3px}
+  select,button{background:#0d1117;color:var(--texto);border:1px solid var(--borde);
+                border-radius:6px;padding:6px 10px;font-size:13px}
+  button{cursor:pointer}
+  button:hover{border-color:var(--acento)}
+  .precio{margin-left:auto;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+  .envoltorio{display:grid;grid-template-columns:1fr 330px;gap:12px;padding:12px}
+  @media(max-width:900px){.envoltorio{grid-template-columns:1fr}}
+  .caja{background:var(--panel);border:1px solid var(--borde);border-radius:10px;padding:12px}
+  .caja h2{font-size:12px;margin:0 0 10px;color:var(--suave);text-transform:uppercase;
+           letter-spacing:.8px;font-weight:600}
+  canvas{width:100%;display:block;border-radius:6px}
+  .fila{display:flex;justify-content:space-between;padding:4px 0;font-variant-numeric:tabular-nums}
+  .fila span:first-child{color:var(--suave)}
+  .barra{height:6px;background:#0d1117;border-radius:3px;overflow:hidden;margin:6px 0 10px}
+  .barra i{display:block;height:100%}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  td{padding:3px 0}
+  td:last-child{text-align:right}
+  .nota{color:var(--suave);font-size:12px;line-height:1.5;margin-top:10px;
+        border-top:1px solid var(--borde);padding-top:10px}
+  .pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600}
+  .verde{background:rgba(63,185,80,.15);color:var(--alza)}
+  .rojo{background:rgba(248,81,73,.15);color:var(--baja)}
+  .gris{background:rgba(139,148,158,.15);color:var(--suave)}
+  #estado{color:var(--suave);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>KRAKEN SCOPE</h1>
+  <select id="par"></select>
+  <select id="intervalo">
+    <option value="1">1 min</option>
+    <option value="5" selected>5 min</option>
+    <option value="15">15 min</option>
+    <option value="60">1 hora</option>
+    <option value="240">4 horas</option>
+  </select>
+  <button id="refrescar">Refrescar</button>
+  <label style="font-size:12px;color:var(--suave)">
+    <input type="checkbox" id="auto" checked> auto 20s
+  </label>
+  <span id="estado"></span>
+  <div class="precio" id="precio">—</div>
+</header>
+
+<div class="envoltorio">
+  <div>
+    <div class="caja" id="caja-porque" style="border-color:#2d4a6b">
+      <h2>Por qué se está moviendo</h2>
+      <div id="porque" style="font-size:15px;line-height:1.65"></div>
+      <div class="nota">
+        Todo lo de arriba son hechos medidos ahora mismo, encadenados. Describe el movimiento
+        que ya está ocurriendo; no dice qué va a pasar después.
+      </div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Precio y perfil de volumen · dónde se negoció de verdad</h2>
+      <canvas id="grafico" height="420"></canvas>
+      <div class="nota">
+        La franja de la derecha es el volumen negociado en cada nivel de precio.
+        La línea <b style="color:var(--poc)">ámbar</b> es el POC (el precio con más volumen);
+        la banda sombreada es el área de valor, donde ocurrió el 70% de la actividad.
+        Fuera de esa banda el precio suele moverse rápido porque hay poco negociado.
+      </div>
+    </div>
+    <div class="caja" style="margin-top:12px">
+      <h2>Flujo agresor · CVD</h2>
+      <canvas id="cvd" height="130"></canvas>
+      <div class="nota">
+        Kraken marca quién cruzó el spread en cada operación. Esto es delta real, no estimado.
+        Sube cuando compran agresivamente, baja cuando venden.
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="caja">
+      <h2>Dónde poner el stop</h2>
+      <div id="stops"></div>
+      <div class="nota" id="nota-stop"></div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Análisis fundamental · posicionamiento</h2>
+      <div id="fundamental"></div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Análisis técnico · estado del precio</h2>
+      <div id="tecnico"></div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Contexto de volatilidad</h2>
+      <div id="contexto"></div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Presión agresora</h2>
+      <div id="presion"></div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Liquidez en el libro</h2>
+      <div id="libro"></div>
+      <div class="nota">
+        Niveles con volumen muy por encima de lo normal. El precio tiende a frenarse
+        ahí, o a acelerar cuando los rompe.
+      </div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Lo que esta herramienta no hace</h2>
+      <div class="nota" style="border:0;padding:0;margin:0">
+        No da señales ni pronostica dirección, a propósito. Nueve meses de investigación
+        (Odette e5/e6 y 212 configuraciones de order flow) mostraron que la predicción
+        direccional de corto plazo no sobrevive fuera de muestra. Esto muestra
+        <b>estructura</b>: dónde hay volumen, cuánto se mueve el par, quién es agresivo
+        y dónde está la liquidez. La decisión es tuya.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let D = null;
+let cargando = false;
+
+const fmt = (x, d=2) => x==null||isNaN(x) ? "—" :
+  x.toLocaleString("es", {minimumFractionDigits:d, maximumFractionDigits:d});
+const pct = x => x==null||isNaN(x) ? "—" : (x*100).toFixed(2)+"%";
+const esc = x => String(x??"").replace(/[&<>'"]/g, c=>({
+  "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;"
+}[c]));
+
+async function cargarPares(){
+  const r = await fetch("/api/pares");
+  if(!r.ok) throw new Error(`No se pudieron cargar los pares (HTTP ${r.status})`);
+  const j = await r.json();
+  const sel = $("#par");
+  sel.replaceChildren(...j.map(p=>{
+    const o = new Option(p.nombre, p.id);
+    o.dataset.base = p.nombre.split("/")[0];
+    return o;
+  }));
+  const pref = j.find(p=>p.nombre==="XBT/USD") || j[0];
+  if(pref) sel.value = pref.id;
+}
+
+async function cargar(){
+  if(cargando) return;
+  cargando = true;
+  $("#estado").textContent = "cargando…";
+  try{
+    const sel = $("#par");
+    const qs = new URLSearchParams({par:sel.value, intervalo:$("#intervalo").value});
+    const r = await fetch(`/api/mercado?${qs}`);
+    D = await r.json();
+    if(!r.ok || D.error){ $("#estado").textContent = "error: "+(D.error||`HTTP ${r.status}`); return; }
+    pintar();
+    $("#estado").textContent = "actualizado " + new Date().toLocaleTimeString("es");
+  }catch(e){ $("#estado").textContent = "error: "+e.message; }
+  finally{ cargando = false; }
+}
+
+function pintar(){
+  const dec = D.ultimo > 1000 ? 1 : D.ultimo > 10 ? 3 : 5;
+  $("#precio").textContent = fmt(D.ultimo, dec);
+  $("#porque").textContent = D.porque || "Sin datos suficientes para describir el movimiento.";
+  grafico(dec); graficoCVD(); panelStops(dec); panelContexto(dec);
+  panelPresion(); panelLibro(dec); panelFundamental(dec); panelTecnico(dec);
+}
+
+function panelFundamental(dec){
+  const f = D.fundamental;
+  const el = $("#fundamental");
+  if(!f || f.error){
+    el.innerHTML = `<div class="nota" style="border:0;padding:0;margin:0">
+      ${f&&f.error ? "No se pudo leer el mercado de futuros: "+esc(f.error)
+                   : "Este par no tiene perpetuo en Kraken Futures, así que no hay datos de posicionamiento."}
+      </div>`;
+    return;
+  }
+  const q = f.funding_pctl;
+  let nivel="normal", clase="gris";
+  if(q!=null){ if(q>=90){nivel="inusualmente alto";clase="rojo"} else if(q>=70){nivel="alto";clase="rojo"}
+               else if(q<=10){nivel="inusualmente bajo";clase="verde"} else if(q<=30){nivel="bajo";clase="verde"} }
+  const paga = (f.funding_rel||0) >= 0 ? "largos pagan" : "cortos pagan";
+  const oi = f.oi_cambio!=null
+    ? `<b style="color:${f.oi_cambio>=0?"var(--alza)":"var(--baja)"}">${pct(f.oi_cambio)}</b>
+       <span style="color:var(--suave)">en ${f.oi_horas.toFixed(1)} h</span>`
+    : `<span style="color:var(--suave)">acumulando (${f.oi_muestras} muestra${f.oi_muestras==1?"":"s"}, hace falta 1 h)</span>`;
+
+  el.innerHTML = `
+    <div class="fila"><span>Contrato</span><b>${esc(f.symbol)}</b></div>
+    <div class="fila"><span>Funding (por hora)</span>
+      <b>${f.funding_rel==null?"—":(f.funding_rel*100).toFixed(5)+"%"} <span class="pill gris">${paga}</span></b></div>
+    <div class="fila"><span>Percentil del funding</span>
+      <b>${q==null?"—":q.toFixed(0)+"º"} <span class="pill ${clase}">${nivel}</span></b></div>
+    <div class="fila"><span>Interés abierto</span><b>${fmt(f.oi,0)}</b></div>
+    <div class="fila"><span>Cambio del interés abierto</span><b>${oi}</b></div>
+    <div class="fila"><span>Prima del perpetuo</span>
+      <b style="color:${(f.basis_pct||0)>=0?"var(--alza)":"var(--baja)"}">${f.basis_pct==null?"—":(f.basis_pct*100).toFixed(4)+"%"}</b></div>
+    ${f.cuadrante ? `<div class="nota"><b>${f.cuadrante}</b> — ${f.cuadrante_expl}</div>` : `
+    <div class="nota">El cuadrante precio/interés abierto aparece cuando haya una hora de
+    historial: compara si el movimiento trae contratos nuevos o solo cierra los viejos.</div>`}
+    <div class="nota">
+      El funding es lo que paga un lado al otro por mantener la posición apalancada. Un
+      percentil extremo significa que el posicionamiento está cargado hacia ese lado —
+      es una medida de <b>quién está incómodo</b>, no de hacia dónde irá el precio.
+    </div>`;
+}
+
+function panelTecnico(dec){
+  const t = D.tecnico || {};
+  let h = "";
+  if(t.valor){
+    const fuera = t.valor.zona !== "dentro del área de valor";
+    h += `<div class="fila"><span>Respecto al valor</span>
+      <b><span class="pill ${fuera?"rojo":"verde"}">${t.valor.zona}</span></b></div>
+      <div class="fila"><span>Distancia al POC</span><b>${t.valor.dist_poc_atr.toFixed(2)} ATR</b></div>
+      <div class="nota" style="margin:6px 0 10px">${t.valor.explicacion}</div>`;
+  }
+  if(t.tendencia && t.tendencia.total){
+    const e = t.tendencia.estado;
+    const clase = e.includes("alza")?"verde":e.includes("baja")?"rojo":"gris";
+    h += `<div class="fila"><span>Medias 20/60/120</span>
+      <b><span class="pill ${clase}">${e}</span> ${t.tendencia.por_encima_de}/${t.tendencia.total}</b></div>`;
+  }
+  if(t.participacion){
+    const r = t.participacion.ratio;
+    const clase = r>1.3?"verde":r<0.7?"rojo":"gris";
+    h += `<div class="fila"><span>Participación</span>
+      <b>${r==null?"—":r.toFixed(2)+"×"} <span class="pill ${clase}">${t.participacion.lectura}</span></b></div>`;
+  }
+  if(t.rango_dia){
+    h += `<div class="fila"><span>Posición en el rango 24 h</span>
+      <b>${t.rango_dia.posicion.toFixed(0)}%</b></div>
+      <div class="barra"><i style="width:${t.rango_dia.posicion}%;background:var(--acento)"></i></div>`;
+  }
+  if(t.btc){
+    const b = t.btc.beta;
+    h += `<div class="fila"><span>Beta contra BTC</span><b>${b.toFixed(2)}×</b></div>
+      <div class="fila"><span>Correlación con BTC</span><b>${t.btc.correlacion.toFixed(2)}</b></div>
+      <div class="nota">${t.btc.correlacion>0.7
+        ? `Se mueve casi pegado a BTC (${b.toFixed(2)}× su magnitud). Buena parte de lo que ves
+           aquí es el mercado entero, no algo propio de esta moneda.`
+        : `Se mueve con bastante independencia de BTC, así que lo que pasa aquí es más propio
+           de esta moneda que del mercado.`}</div>`;
+  }
+  h += `<div class="nota">Esto describe el estado actual del precio. La alineación de medias es
+    un hecho, no una señal: en horizontes de scalping no tiene valor predictivo demostrado.</div>`;
+  $("#tecnico").innerHTML = h || "<div class='nota' style='border:0;padding:0;margin:0'>Sin datos.</div>";
+}
+
+function grafico(dec){
+  const c = $("#grafico"), ctx = c.getContext("2d");
+  const W = c.width = c.clientWidth * devicePixelRatio;
+  const H = c.height = 420 * devicePixelRatio;
+  ctx.scale(1,1); ctx.clearRect(0,0,W,H);
+  const v = D.velas; if(!v.length) return;
+  const anchoPerfil = W*0.20, padD = 8*devicePixelRatio, padArr = 10*devicePixelRatio;
+  const areaW = W - anchoPerfil - padD;
+  const lo = Math.min(...v.map(x=>x.low)), hi = Math.max(...v.map(x=>x.high));
+  const rango = (hi-lo)||1;
+  const y = p => padArr + (hi-p)/rango * (H-2*padArr);
+
+  // área de valor
+  if(D.perfil.va_lo!=null){
+    ctx.fillStyle = "rgba(88,166,255,.07)";
+    ctx.fillRect(0, y(D.perfil.va_hi), W, y(D.perfil.va_lo)-y(D.perfil.va_hi));
+  }
+  // velas
+  const paso = areaW / v.length, cuerpo = Math.max(1, paso*0.62);
+  v.forEach((k,i)=>{
+    const x = i*paso + paso/2, sube = k.close >= k.open;
+    ctx.strokeStyle = ctx.fillStyle = sube ? "#3fb950" : "#f85149";
+    ctx.lineWidth = Math.max(1, devicePixelRatio);
+    ctx.beginPath(); ctx.moveTo(x, y(k.high)); ctx.lineTo(x, y(k.low)); ctx.stroke();
+    const yo = y(k.open), yc = y(k.close);
+    ctx.fillRect(x-cuerpo/2, Math.min(yo,yc), cuerpo, Math.max(1, Math.abs(yc-yo)));
+  });
+  // perfil de volumen
+  const n = D.perfil.niveles; if(n.length){
+    const vmax = Math.max(...n.map(x=>x.vol))||1;
+    const alt = Math.max(1, (H-2*padArr)/n.length*0.85);
+    n.forEach(nv=>{
+      const w = (nv.vol/vmax) * (anchoPerfil-padD);
+      const dentro = D.perfil.va_lo!=null && nv.precio>=D.perfil.va_lo && nv.precio<=D.perfil.va_hi;
+      ctx.fillStyle = dentro ? "rgba(88,166,255,.55)" : "rgba(139,148,158,.32)";
+      ctx.fillRect(W-w, y(nv.precio)-alt/2, w, alt);
+    });
+  }
+  // POC
+  if(D.perfil.poc!=null){
+    ctx.strokeStyle = "#d29922"; ctx.lineWidth = Math.max(1,devicePixelRatio);
+    ctx.setLineDash([6*devicePixelRatio,4*devicePixelRatio]);
+    ctx.beginPath(); ctx.moveTo(0,y(D.perfil.poc)); ctx.lineTo(W,y(D.perfil.poc)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle="#d29922"; ctx.font=`${11*devicePixelRatio}px ui-sans-serif`;
+    ctx.fillText("POC "+fmt(D.perfil.poc,dec), 6*devicePixelRatio, y(D.perfil.poc)-4*devicePixelRatio);
+  }
+  // precio actual
+  ctx.strokeStyle="#e6edf3"; ctx.lineWidth=Math.max(1,devicePixelRatio);
+  ctx.beginPath(); ctx.moveTo(0,y(D.ultimo)); ctx.lineTo(W,y(D.ultimo)); ctx.stroke();
+}
+
+function graficoCVD(){
+  const c=$("#cvd"), ctx=c.getContext("2d");
+  const W=c.width=c.clientWidth*devicePixelRatio, H=c.height=130*devicePixelRatio;
+  ctx.clearRect(0,0,W,H);
+  const s=D.flujo.cvd; if(!s||s.length<2) return;
+  const vals=s.map(x=>x.cvd), lo=Math.min(...vals), hi=Math.max(...vals), r=(hi-lo)||1;
+  const pad=8*devicePixelRatio;
+  ctx.beginPath();
+  s.forEach((p,i)=>{
+    const x=i/(s.length-1)*W, y=pad+(hi-p.cvd)/r*(H-2*pad);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.strokeStyle = vals[vals.length-1]>=vals[0] ? "#3fb950" : "#f85149";
+  ctx.lineWidth=2*devicePixelRatio; ctx.stroke();
+  if(lo<0 && hi>0){
+    const y0=pad+hi/r*(H-2*pad);
+    ctx.strokeStyle="rgba(139,148,158,.4)"; ctx.lineWidth=1;
+    ctx.setLineDash([4,4]); ctx.beginPath();
+    ctx.moveTo(0,y0); ctx.lineTo(W,y0); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+
+function panelStops(dec){
+  const a=D.atr, p=D.ultimo, e=D.excursion||{};
+  if(!a || !e.largo || !e.corto){
+    $("#stops").innerHTML="<div class='fila'><span>Sin datos suficientes</span></div>";
+    $("#nota-stop").textContent="Sin histórico suficiente para medir excursiones.";
+    return;
+  }
+  const filas=[[50,"Mediana"],[80,"Cubre 80%"],[90,"Cubre 90%"]].map(([q,etq])=>{
+    const ml=e.largo[`p${q}`], mc=e.corto[`p${q}`];
+    return `<tr><td>${etq}</td><td title="${fmt(ml,2)} ATR">${fmt(p-a*ml,dec)}</td>
+            <td title="${fmt(mc,2)} ATR">${fmt(p+a*mc,dec)}</td></tr>`;
+  }).join("");
+  $("#stops").innerHTML=`<table><thead><tr><td></td><td>Largo ↓</td><td>Corto ↑</td></tr></thead>
+    <tbody>${filas}</tbody></table>`;
+  $("#nota-stop").innerHTML = e.largo.p50!=null
+    ? `Referencia histórica sobre <b>${e.muestras}</b> entradas al cierre y las
+       <b>${e.horizonte_barras}</b> barras posteriores. Separa el ruido adverso de un largo
+       (${fmt(e.largo.p50,2)} ATR de mediana) y de un corto (${fmt(e.corto.p50,2)} ATR).
+       “Cubre 80%” significa que el 80% de las excursiones observadas no alcanzó ese precio;
+       no es una recomendación de riesgo.`
+    : `Sin histórico suficiente para medir excursiones.`;
+}
+
+function panelContexto(dec){
+  const q=D.vol_percentil;
+  let etq="normal", clase="gris";
+  if(!isNaN(q)){ if(q>=80){etq="alta";clase="rojo"} else if(q<=20){etq="baja";clase="verde"} }
+  $("#contexto").innerHTML=`
+    <div class="fila"><span>ATR (14)</span><b>${fmt(D.atr,dec)} · ${pct(D.atr_pct_precio)}</b></div>
+    <div class="fila"><span>Percentil de volatilidad</span>
+      <b>${isNaN(q)?"—":q.toFixed(0)+"º"} <span class="pill ${clase}">${etq}</span></b></div>
+    <div class="fila"><span>Spread</span><b>${fmt(D.spread,dec)} · ${pct(D.spread_pct)}</b></div>
+    <div class="nota" style="border:0;padding:0;margin-top:8px">
+      El percentil compara la volatilidad de ahora con la de este mismo par en la ventana
+      cargada. Con volatilidad alta, el mismo stop en porcentaje es mucho más fácil de tocar.
+    </div>`;
+}
+
+function panelPresion(){
+  const f=D.flujo, tot=f.compra+f.venta||1, cp=f.compra/tot*100;
+  $("#presion").innerHTML=`
+    <div class="barra"><i style="width:${cp}%;background:var(--alza)"></i></div>
+    <div class="fila"><span>Compra agresiva</span><b style="color:var(--alza)">${fmt(f.compra,3)}</b></div>
+    <div class="fila"><span>Venta agresiva</span><b style="color:var(--baja)">${fmt(f.venta,3)}</b></div>
+    <div class="fila"><span>Delta</span>
+      <b style="color:${f.delta>=0?"var(--alza)":"var(--baja)"}">${fmt(f.delta,3)} (${pct(f.ratio)})</b></div>
+    <div class="fila"><span>Operaciones</span><b>${f.n}</b></div>`;
+}
+
+function panelLibro(dec){
+  const l=D.libro, d=l.desequilibrio;
+  const fila = (x,color) => `<tr><td style="color:${color}">${fmt(x.precio,dec)}</td><td>${fmt(x.vol,3)}</td></tr>`;
+  $("#libro").innerHTML=`
+    <div class="fila"><span>Desequilibrio bid/ask</span>
+      <b style="color:${d>=0?"var(--alza)":"var(--baja)"}">${pct(d)}</b></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+      <div><div style="color:var(--suave);font-size:11px;margin-bottom:4px">SOPORTE (bids)</div>
+        <table>${(l.bids||[]).map(x=>fila(x,"var(--alza)")).join("")||"<tr><td>—</td></tr>"}</table></div>
+      <div><div style="color:var(--suave);font-size:11px;margin-bottom:4px">RESISTENCIA (asks)</div>
+        <table>${(l.asks||[]).map(x=>fila(x,"var(--baja)")).join("")||"<tr><td>—</td></tr>"}</table></div>
+    </div>`;
+}
+
+$("#refrescar").onclick = cargar;
+$("#par").onchange = cargar;
+$("#intervalo").onchange = cargar;
+window.addEventListener("resize", ()=>D&&pintar());
+setInterval(()=>{ if($("#auto").checked) cargar(); }, 20000);
+cargarPares().then(cargar).catch(e=>$("#estado").textContent="error: "+e.message);
+</script>
+</body>
+</html>
