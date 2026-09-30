@@ -18,6 +18,7 @@ Uso:
     PYTHONPATH=~/Herramientas/pylibs python3 app.py
     y abrir http://127.0.0.1:8777
 """
+import ipaddress
 import json
 import os
 import tempfile
@@ -44,6 +45,35 @@ INTERVALOS = {1, 5, 15, 30, 60, 240, 1440, 10080, 21600}
 _cache = OrderedDict()
 _cache_lock = threading.RLock()
 CACHE_TTL = {"OHLC": 20, "Trades": 2, "Depth": 2, "AssetPairs": 3600, "Ticker": 2}
+
+
+def _ips_permitidas():
+    """Lista opcional de clientes autorizados, configurada al arrancar."""
+    crudas = os.environ.get("KRAKEN_SCOPE_ALLOWED_IPS", "")
+    permitidas = {
+        ipaddress.ip_address("127.0.0.1"),
+        ipaddress.ip_address("::1"),
+        ipaddress.ip_address("::ffff:127.0.0.1"),
+    }
+    for valor in crudas.split(","):
+        valor = valor.strip()
+        if valor:
+            permitidas.add(ipaddress.ip_address(valor))
+    return permitidas
+
+
+@app.before_request
+def limitar_clientes():
+    """Cuando hay allowlist, no sirve ni la página ni la API a otros clientes."""
+    if not os.environ.get("KRAKEN_SCOPE_ALLOWED_IPS", "").strip():
+        return None
+    try:
+        cliente = ipaddress.ip_address(request.remote_addr)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Dirección de cliente no válida"}), 403
+    if cliente not in _ips_permitidas():
+        return jsonify({"error": "Cliente no autorizado"}), 403
+    return None
 
 
 def _cache_consultar(clave, ttl):
@@ -695,5 +725,7 @@ def mercado():
 
 
 if __name__ == "__main__":
-    print("Kraken Scope -> http://127.0.0.1:8777   (sin credenciales, solo datos públicos)")
-    app.run(host="127.0.0.1", port=8777, debug=False)
+    host = os.environ.get("KRAKEN_SCOPE_HOST", "127.0.0.1")
+    port = int(os.environ.get("KRAKEN_SCOPE_PORT", "8777"))
+    print(f"Kraken Scope -> http://[{host}]:{port}   (sin credenciales, solo datos públicos)")
+    app.run(host=host, port=port, debug=False)

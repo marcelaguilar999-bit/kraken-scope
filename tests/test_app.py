@@ -69,7 +69,29 @@ class PersistenciaTests(unittest.TestCase):
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
+        self._allowed_ips = os.environ.pop("KRAKEN_SCOPE_ALLOWED_IPS", None)
         self.client = app.app.test_client()
+
+    def tearDown(self):
+        if self._allowed_ips is not None:
+            os.environ["KRAKEN_SCOPE_ALLOWED_IPS"] = self._allowed_ips
+        else:
+            os.environ.pop("KRAKEN_SCOPE_ALLOWED_IPS", None)
+
+    def test_allowlist_ipv6_rechaza_otro_cliente(self):
+        os.environ["KRAKEN_SCOPE_ALLOWED_IPS"] = "2001:db8::1234"
+        respuesta = self.client.get(
+            "/api/salud", environ_base={"REMOTE_ADDR": "2001:db8::7"}
+        )
+        self.assertEqual(respuesta.status_code, 403)
+
+    def test_allowlist_ipv6_permite_cliente_configurado(self):
+        cliente = "2001:db8::1234"
+        os.environ["KRAKEN_SCOPE_ALLOWED_IPS"] = cliente
+        respuesta = self.client.get(
+            "/api/salud", environ_base={"REMOTE_ADDR": cliente}
+        )
+        self.assertEqual(respuesta.status_code, 200)
 
     def test_salud(self):
         r = self.client.get("/api/salud")

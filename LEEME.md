@@ -129,6 +129,21 @@ quién es agresivo, dónde está la liquidez. Eso es lo que muestra.
 - `GET /api/precio` entrega el snapshot ligero usado por el refresco de 3 segundos.
 - `technical.py` contiene detección de pivotes, estructura Dow simplificada, HCH y escenarios.
 
+### Acceso temporal por IPv6
+
+Por defecto sigue escuchando únicamente en `127.0.0.1`. Para probarlo desde un dispositivo
+con una IPv6 concreta, se puede escuchar por IPv6 y activar una lista de clientes permitidos:
+
+```bash
+KRAKEN_SCOPE_HOST='::' \
+KRAKEN_SCOPE_ALLOWED_IPS='2001:db8::1234' \
+PYTHONPATH=~/Herramientas/pylibs:. python3 app.py
+```
+
+La lista acepta varias direcciones separadas por comas. `127.0.0.1` y `::1` siempre quedan
+permitidas para las comprobaciones locales. Esto filtra en la aplicación; si el sistema tiene
+un cortafuegos activo, también debe aceptar TCP/8777 para ese cliente.
+
 ## Comprobar los cálculos
 
 ```bash
