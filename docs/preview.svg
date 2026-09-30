@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="820" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
+  <title id="title">Kraken Scope dashboard preview</title>
+  <desc id="desc">Dark market dashboard with heatmap, live metrics, strategy toggles and price chart.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#162c46"/><stop offset=".4" stop-color="#090d13"/><stop offset="1" stop-color="#090d13"/></linearGradient>
+    <linearGradient id="panel" x2="1" y2="1"><stop stop-color="#151e2a"/><stop offset="1" stop-color="#0e151e"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="15" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="1440" height="820" fill="url(#bg)"/>
+  <rect width="1440" height="66" fill="#0b1017" fill-opacity=".94"/><path d="M0 66h1440" stroke="#263241"/>
+  <text x="28" y="40" fill="#eef4fb" font-family="system-ui,sans-serif" font-size="19" font-weight="800" letter-spacing="3">KRAKEN SCOPE</text>
+  <rect x="229" y="20" width="124" height="27" rx="14" fill="none" stroke="#345b83"/><text x="247" y="38" fill="#8cc6ff" font-family="system-ui,sans-serif" font-size="11">PORTFOLIO DEMO</text>
+  <text x="1387" y="31" fill="#eef4fb" text-anchor="end" font-family="system-ui,sans-serif" font-size="20" font-weight="700">$67,428.20</text><text x="1387" y="49" fill="#8d9bad" text-anchor="end" font-family="system-ui,sans-serif" font-size="10">datos ilustrativos · sin trading</text>
+  <g filter="url(#shadow)"><rect x="22" y="84" width="1396" height="150" rx="14" fill="url(#panel)" stroke="#263241"/></g>
+  <text x="42" y="112" fill="#8d9bad" font-family="system-ui,sans-serif" font-size="11" font-weight="700" letter-spacing="1.5">MAPA DE CALOR · TOCA UN ACTIVO PARA ABRIR SU SCOPE</text>
+  <g font-family="system-ui,sans-serif" fill="white">
+    <g transform="translate(42 127)"><rect width="246" height="88" rx="9" fill="#176844" stroke="#fff" stroke-width="2"/><text x="14" y="28" font-size="16" font-weight="700">BTC</text><text x="14" y="51" font-size="14">+2.84%</text><text x="14" y="72" font-size="11" opacity=".72">$1.62B</text></g>
+    <g transform="translate(297 127)"><rect width="246" height="88" rx="9" fill="#17704a"/><text x="14" y="28" font-size="16" font-weight="700">ETH</text><text x="14" y="51" font-size="14">+4.12%</text><text x="14" y="72" font-size="11" opacity=".72">$924M</text></g>
+    <g transform="translate(552 127)"><rect width="246" height="88" rx="9" fill="#16794e"/><text x="14" y="28" font-size="16" font-weight="700">SOL</text><text x="14" y="51" font-size="14">+6.31%</text><text x="14" y="72" font-size="11" opacity=".72">$518M</text></g>
+    <g transform="translate(807 127)"><rect width="141" height="88" rx="9" fill="#176f49"/><text x="12" y="28" font-size="15" font-weight="700">XRP</text><text x="12" y="51" font-size="13">+3.32%</text><text x="12" y="72" font-size="10" opacity=".72">$311M</text></g>
+    <g transform="translate(957 127)"><rect width="141" height="88" rx="9" fill="#703039"/><text x="12" y="28" font-size="15" font-weight="700">ADA</text><text x="12" y="51" font-size="13">−1.76%</text><text x="12" y="72" font-size="10" opacity=".72">$138M</text></g>
+    <g transform="translate(1107 127)"><rect width="141" height="88" rx="9" fill="#1b6747"/><text x="12" y="28" font-size="15" font-weight="700">DOGE</text><text x="12" y="51" font-size="13">+1.48%</text><text x="12" y="72" font-size="10" opacity=".72">$126M</text></g>
+    <g transform="translate(1257 127)"><rect width="141" height="88" rx="9" fill="#74323b"/><text x="12" y="28" font-size="15" font-weight="700">AVAX</text><text x="12" y="51" font-size="13">−3.14%</text><text x="12" y="72" font-size="10" opacity=".72">$91M</text></g>
+  </g>
+  <g filter="url(#shadow)"><rect x="22" y="250" width="950" height="545" rx="14" fill="url(#panel)" stroke="#263241"/><rect x="988" y="250" width="430" height="232" rx="14" fill="url(#panel)" stroke="#263241"/><rect x="988" y="498" width="430" height="297" rx="14" fill="url(#panel)" stroke="#263241"/></g>
+  <text x="42" y="280" fill="#8d9bad" font-family="system-ui,sans-serif" font-size="11" font-weight="700" letter-spacing="1.5">PRECIO REAL Y CONTEXTO DE EJECUCIÓN</text>
+  <g font-family="system-ui,sans-serif">
+    <g transform="translate(42 296)"><rect width="215" height="62" rx="9" fill="#0a1119"/><text x="12" y="22" fill="#8d9bad" font-size="10">Último trade</text><text x="12" y="47" fill="#eef4fb" font-size="16" font-weight="700">$67,428.20</text></g>
+    <g transform="translate(266 296)"><rect width="215" height="62" rx="9" fill="#0a1119"/><text x="12" y="22" fill="#8d9bad" font-size="10">Bid / Ask</text><text x="12" y="47" fill="#eef4fb" font-size="16" font-weight="700">$67,414 / $67,441</text></g>
+    <g transform="translate(490 296)"><rect width="215" height="62" rx="9" fill="#0a1119"/><text x="12" y="22" fill="#8d9bad" font-size="10">Spread</text><text x="12" y="47" fill="#eef4fb" font-size="16" font-weight="700">0.04%</text></g>
+    <g transform="translate(714 296)"><rect width="238" height="62" rx="9" fill="#0a1119"/><text x="12" y="22" fill="#8d9bad" font-size="10">Cambio 24 h</text><text x="12" y="47" fill="#2ecb72" font-size="16" font-weight="700">+2.84%</text></g>
+    <rect x="42" y="372" width="910" height="56" rx="8" fill="#0a1119"/><rect x="42" y="372" width="3" height="56" fill="#4ca3ff"/><text x="58" y="396" fill="#d6e3f2" font-size="13">BTC acelera sobre el área de valor con participación alta;</text><text x="58" y="416" fill="#d6e3f2" font-size="13">el flujo comprador confirma el movimiento observado.</text>
+  </g>
+  <text x="42" y="459" fill="#8d9bad" font-family="system-ui,sans-serif" font-size="11" font-weight="700" letter-spacing="1.5">MÉTODOS DISPONIBLES · ACTIVA VARIAS CAPAS</text>
+  <g font-family="system-ui,sans-serif" font-size="12">
+    <g transform="translate(42 475)"><rect width="215" height="53" rx="8" fill="#0a1119" stroke="#4ca3ff"/><rect width="3" height="53" fill="#4ca3ff"/><text x="12" y="22" fill="#eef4fb" font-weight="700">Dow simplificado</text><text x="12" y="40" fill="#8d9bad" font-size="10">visible en el gráfico</text></g>
+    <g transform="translate(266 475)"><rect width="215" height="53" rx="8" fill="#0a1119" stroke="#263241"/><text x="12" y="22" fill="#eef4fb" font-weight="700">HCH / HCH invertido</text><text x="12" y="40" fill="#8d9bad" font-size="10">toca para mostrar</text></g>
+    <g transform="translate(490 475)"><rect width="215" height="53" rx="8" fill="#0a1119" stroke="#263241"/><text x="12" y="22" fill="#eef4fb" font-weight="700">Donchian 20</text><text x="12" y="40" fill="#8d9bad" font-size="10">toca para mostrar</text></g>
+    <g transform="translate(714 475)"><rect width="238" height="53" rx="8" fill="#0a1119" stroke="#39c5cf"/><rect width="3" height="53" fill="#39c5cf"/><text x="12" y="22" fill="#eef4fb" font-weight="700">Área de valor</text><text x="12" y="40" fill="#8d9bad" font-size="10">visible en el gráfico</text></g>
+  </g>
+  <rect x="42" y="545" width="910" height="226" rx="9" fill="#081019" stroke="#1c2734"/><rect x="66" y="620" width="846" height="76" fill="#39c5cf" opacity=".08"/>
+  <g stroke="#1c2938"><path d="M66 580h846M66 625h846M66 670h846M66 715h846"/></g>
+  <path d="M66 711 C110 690 124 704 165 673 S230 681 274 646 S336 658 382 621 S446 635 492 596 S558 622 602 580 S670 610 714 568 S789 587 832 548 S878 570 912 552" fill="none" stroke="#2ecb72" stroke-width="3"/>
+  <path d="M530 610 L685 578 L820 554 L910 552" fill="none" stroke="#4ca3ff" stroke-width="2"/>
+  <rect x="842" y="662" width="70" height="4" fill="#f5b942"/><text x="844" y="655" fill="#f5b942" font-family="system-ui,sans-serif" font-size="10">POC</text>
+  <g font-family="system-ui,sans-serif"><text x="1008" y="280" fill="#8d9bad" font-size="11" font-weight="700" letter-spacing="1.5">ESCENARIO CONDICIONAL</text>
+    <g fill="#8d9bad" font-size="13"><text x="1008" y="319">Estado</text><text x="1008" y="357">Confirmación</text><text x="1008" y="395">Proyección</text><text x="1008" y="433">Invalidación</text></g>
+    <g fill="#eef4fb" font-size="13" font-weight="700" text-anchor="end"><text x="1397" y="319">espera confirmación</text><text x="1397" y="357">$68,237.34</text><text x="1397" y="395">$70,597.33</text><text x="1397" y="433">$65,944.78</text></g>
+    <text x="1008" y="528" fill="#8d9bad" font-size="11" font-weight="700" letter-spacing="1.5">ESTRUCTURA MEDIDA</text>
+    <g fill="#8d9bad" font-size="13"><text x="1008" y="570">ATR actual</text><text x="1008" y="610">POC aproximado</text><text x="1008" y="650">Correlación BTC</text><text x="1008" y="690">Volumen 24 h</text></g>
+    <g fill="#eef4fb" font-size="13" font-weight="700" text-anchor="end"><text x="1397" y="570">1.34%</text><text x="1397" y="610">$66,180</text><text x="1397" y="650">1.00</text><text x="1397" y="690">$1.62B</text></g>
+    <text x="1008" y="735" fill="#8d9bad" font-size="11" font-weight="700" letter-spacing="1.5">LATENCIA SEPARADA</text><text x="1008" y="768" fill="#8d9bad" font-size="13">RTT · backend · edad del trade</text><text x="1397" y="768" fill="#eef4fb" font-size="13" font-weight="700" text-anchor="end">42 ms · 18 ms · 0.7 s</text>
+  </g>
+</svg>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Demo interactiva de Kraken Scope, un dashboard local de estructura de mercado.">
+<title>Kraken Scope · Demo</title>
+<style>
+:root{--bg:#090d13;--panel:#121923;--line:#263241;--text:#eef4fb;--muted:#8d9bad;--up:#2ecb72;--down:#ff5c62;--blue:#4ca3ff;--amber:#f5b942}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 18% -10%,#183557 0,transparent 32%),var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:14px 22px;background:rgba(9,13,19,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.brand{font-weight:800;letter-spacing:.12em}.badge,.pill{border:1px solid var(--line);border-radius:999px;padding:4px 9px;color:var(--muted);font-size:11px}.badge{border-color:#345b83;color:#8cc6ff}.head-price{margin-left:auto;text-align:right}.head-price b{font-size:21px}.head-price span{display:block;color:var(--muted);font-size:11px}
+main{max-width:1440px;margin:auto;padding:18px}.panel{background:linear-gradient(145deg,rgba(20,29,41,.98),rgba(13,19,28,.98));border:1px solid var(--line);border-radius:14px;padding:15px;box-shadow:0 14px 35px rgba(0,0,0,.18)}
+.eyebrow{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}.heat{display:grid;grid-template-columns:repeat(8,1fr);gap:7px}.asset{min-height:74px;border:1px solid transparent;border-radius:9px;padding:10px;color:white;text-align:left;cursor:pointer;background:color-mix(in srgb,var(--tone) 42%,#111923)}.asset:hover,.asset.active{border-color:white}.asset.active{box-shadow:0 0 0 2px var(--blue)}.asset b,.asset span{display:block}.asset span{font-size:12px;margin-top:2px}.asset small{opacity:.7}.asset.big{grid-column:span 2}
+.grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:14px;margin-top:14px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{background:#0b1119;border:1px solid #1d2835;border-radius:9px;padding:10px}.metric span{color:var(--muted);font-size:11px;display:block}.metric b{font-size:16px;display:block;margin-top:3px}.story{margin-top:13px;padding:13px;border-left:3px solid var(--blue);background:#0b1119;border-radius:7px;color:#d6e3f2}.methods{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.method{min-height:74px;text-align:left;background:#0b1119;color:var(--text);border:1px solid #263241;border-radius:9px;padding:9px;cursor:pointer}.method.active{border-color:var(--color);box-shadow:inset 3px 0 var(--color)}.method span{display:block;color:var(--muted);font-size:11px;margin-top:4px}.legend{min-height:28px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:12px}.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}.chart-wrap{margin-top:6px;background:#0a1017;border:1px solid #1c2734;border-radius:10px;padding:8px}canvas{width:100%;height:380px;display:block}.side{display:grid;gap:14px}.rows{display:grid;gap:8px}.row{display:flex;justify-content:space-between;gap:14px;padding-bottom:7px;border-bottom:1px solid #202a36}.row span{color:var(--muted)}.notice{margin-top:14px;color:var(--muted);font-size:12px;text-align:center}.notice b{color:#b9c8d8}
+@media(max-width:900px){.heat{grid-template-columns:repeat(4,1fr)}.grid{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){header{padding:11px}.heat{grid-template-columns:repeat(2,1fr)}.asset.big{grid-column:span 1}.methods{grid-template-columns:1fr}main{padding:10px}.head-price b{font-size:17px}}
+</style>
+</head>
+<body>
+<header><div class="brand">KRAKEN SCOPE</div><div class="badge">PORTFOLIO DEMO</div><div class="head-price"><b id="topPrice">$—</b><span id="topMeta">datos ilustrativos · sin trading</span></div></header>
+<main>
+  <section class="panel"><div class="eyebrow">Mapa de calor · toca un activo para abrir su scope</div><div class="heat" id="heat"></div></section>
+  <div class="grid">
+    <section class="panel">
+      <div class="eyebrow">Precio real y contexto de ejecución</div><div class="metrics" id="metrics"></div>
+      <div class="story" id="story"></div>
+      <div class="eyebrow" style="margin-top:18px">Métodos disponibles · activa varias capas</div><div class="methods" id="methods"></div><div class="legend" id="legend"></div>
+      <div class="chart-wrap"><canvas id="chart" width="940" height="380"></canvas></div>
+    </section>
+    <aside class="side">
+      <section class="panel"><div class="eyebrow">Escenario condicional</div><div class="rows" id="scenario"></div></section>
+      <section class="panel"><div class="eyebrow">Estructura medida</div><div class="rows" id="structure"></div></section>
+      <section class="panel"><div class="eyebrow">Latencia separada</div><div class="rows"><div class="row"><span>RTT navegador</span><b>42 ms</b></div><div class="row"><span>Backend</span><b>18 ms</b></div><div class="row"><span>Edad del trade</span><b>0.7 s</b></div></div></section>
+    </aside>
+  </div>
+  <div class="notice"><b>Demo con datos sintéticos reproducibles.</b> La aplicación local usa endpoints públicos de Kraken, no pide API keys y no ejecuta órdenes.</div>
+</main>
+<script>
+const assets=[
+ {s:'BTC/USD',p:67428.2,c:2.84,v:'$1.62B',seed:2,story:'BTC acelera sobre el área de valor con participación alta; el flujo comprador confirma el movimiento observado.',atr:'1.34%',corr:'1.00',poc:'$66,180'},
+ {s:'ETH/USD',p:3521.7,c:4.12,v:'$924M',seed:6,story:'ETH gana fuerza relativa mientras el precio acepta por encima del POC y el volumen supera su mediana.',atr:'1.82%',corr:'0.91',poc:'$3,438'},
+ {s:'SOL/USD',p:168.42,c:6.31,v:'$518M',seed:10,story:'SOL lidera el mapa por cambio y volumen; la extensión exige confirmación antes de perseguir precio.',atr:'2.47%',corr:'0.84',poc:'$162.90'},
+ {s:'XRP/USD',p:1.5396,c:3.32,v:'$311M',seed:15,story:'XRP opera fuera del área de valor con volumen elevado y delta positivo; el posicionamiento está cargado.',atr:'0.42%',corr:'0.82',poc:'$1.432'},
+ {s:'ADA/USD',p:.4821,c:-1.76,v:'$138M',seed:19,story:'ADA retrocede hacia una zona de aceptación previa; aún no confirma reingreso ni continuación.',atr:'2.06%',corr:'0.79',poc:'$0.491'},
+ {s:'DOGE/USD',p:.1674,c:1.48,v:'$126M',seed:22,story:'DOGE acompaña al mercado con menor fuerza relativa; el libro muestra liquidez cercana por ambos lados.',atr:'2.58%',corr:'0.76',poc:'$0.164'},
+ {s:'AVAX/USD',p:38.17,c:-3.14,v:'$91M',seed:26,story:'AVAX pierde el nodo de volumen inmediato; el sesgo permanece mixto hasta un nuevo cierre confirmado.',atr:'2.91%',corr:'0.73',poc:'$39.42'}
+];
+const methods=[['dow','Dow simplificado','#4ca3ff'],['hch','HCH / HCH invertido','#f0883e'],['donchian','Donchian 20','#f5b942'],['pullback','Medias 20/60/120','#a371f7'],['valor','Área de valor','#39c5cf'],['perfil','Nodos de volumen','#db61a2'],['flujo','Delta / CVD','#bc8cff'],['liquidez','Liquidez del libro','#8d9bad']];
+let current=assets[0],active=new Set(['dow','valor']);
+const $=s=>document.querySelector(s),fmt=x=>x>=1000?x.toLocaleString('en-US',{maximumFractionDigits:2}):x.toLocaleString('en-US',{minimumFractionDigits:x<2?4:2,maximumFractionDigits:x<2?4:2});
+function renderHeat(){$('#heat').innerHTML=assets.map((a,i)=>`<button class="asset ${i<3?'big':''} ${a===current?'active':''}" style="--tone:${a.c>=0?'#168b50':'#b43a42'}" data-i="${i}"><b>${a.s.replace('/USD','')}</b><span>${a.c>=0?'+':''}${a.c.toFixed(2)}%</span><small>${a.v}</small></button>`).join('');document.querySelectorAll('.asset').forEach(b=>b.onclick=()=>{current=assets[+b.dataset.i];render()})}
+function renderMethods(){$('#methods').innerHTML=methods.map(m=>`<button class="method ${active.has(m[0])?'active':''}" style="--color:${m[2]}" data-id="${m[0]}"><b>${m[1]}</b><span>${active.has(m[0])?'visible en el gráfico':'toca para mostrar'}</span></button>`).join('');document.querySelectorAll('.method').forEach(b=>b.onclick=()=>{active.has(b.dataset.id)?active.delete(b.dataset.id):active.add(b.dataset.id);renderMethods();draw()});$('#legend').innerHTML=active.size?[...active].map(id=>{let m=methods.find(x=>x[0]===id);return `<span><i class="dot" style="background:${m[2]}"></i>${m[1]}</span>`}).join(''):'Sin capas seleccionadas.'}
+function series(){let out=[],p=current.p*.955;for(let i=0;i<84;i++){let drift=(current.c/100)/84,noise=Math.sin((i+current.seed)*.48)*.0028+Math.cos((i+current.seed)*.17)*.0017;p*=1+drift+noise;out.push(p)}return out}
+function draw(){const c=$('#chart'),x=c.getContext('2d'),d=series(),lo=Math.min(...d)*.992,hi=Math.max(...d)*1.008,X=i=>36+i*(c.width-60)/(d.length-1),Y=v=>18+(hi-v)*(c.height-42)/(hi-lo);x.clearRect(0,0,c.width,c.height);x.strokeStyle='#1c2938';x.lineWidth=1;for(let i=0;i<6;i++){let y=25+i*62;x.beginPath();x.moveTo(30,y);x.lineTo(c.width-15,y);x.stroke()}if(active.has('valor')){x.fillStyle='rgba(57,197,207,.10)';let y1=Y(current.p*.982),y2=Y(current.p*.955);x.fillRect(30,Math.min(y1,y2),c.width-45,Math.abs(y2-y1))}if(active.has('donchian')){x.strokeStyle='#f5b942';x.setLineDash([7,7]);[Math.max(...d.slice(-20)),Math.min(...d.slice(-20))].forEach(v=>{x.beginPath();x.moveTo(30,Y(v));x.lineTo(c.width-15,Y(v));x.stroke()});x.setLineDash([])}x.strokeStyle=current.c>=0?'#2ecb72':'#ff5c62';x.lineWidth=2.4;x.beginPath();d.forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));x.stroke();if(active.has('dow')){x.strokeStyle='#4ca3ff';x.lineWidth=2;x.beginPath();x.moveTo(X(45),Y(d[45]));x.lineTo(X(65),Y(d[65]));x.lineTo(X(82),Y(d[82]));x.stroke()}if(active.has('pullback')){x.strokeStyle='#a371f7';x.lineWidth=1.5;x.beginPath();d.map((_,i)=>d.slice(Math.max(0,i-9),i+1).reduce((a,b)=>a+b,0)/Math.min(10,i+1)).forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));x.stroke()}x.fillStyle='#8d9bad';x.font='12px system-ui';x.fillText('Precio + perfil aproximado',36,20);x.fillStyle='#f5b942';x.fillRect(c.width-80,Y(current.p*.97),55,4);x.fillText('POC',c.width-80,Y(current.p*.97)-7)}
+function render(){renderHeat();renderMethods();$('#topPrice').textContent='$'+fmt(current.p);$('#metrics').innerHTML=[['Último trade','$'+fmt(current.p)],['Bid / Ask','$'+fmt(current.p*.9998)+' / $'+fmt(current.p*1.0002)],['Spread','0.04%'],['Cambio 24 h',(current.c>=0?'+':'')+current.c.toFixed(2)+'%']].map(x=>`<div class="metric"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');$('#story').textContent=current.story;$('#scenario').innerHTML=[['Estado','espera confirmación'],['Confirmación','$'+fmt(current.p*1.012)],['Proyección','$'+fmt(current.p*1.047)],['Invalidación','$'+fmt(current.p*.978)]].map(x=>`<div class="row"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');$('#structure').innerHTML=[['ATR actual',current.atr],['POC aproximado',current.poc],['Correlación BTC',current.corr],['Volumen 24 h',current.v]].map(x=>`<div class="row"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');draw()}
+render();
+</script>
+</body>
+</html>
