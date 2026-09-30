@@ -45,6 +45,10 @@ INTERVALOS = {1, 5, 15, 30, 60, 240, 1440, 10080, 21600}
 _cache = OrderedDict()
 _cache_lock = threading.RLock()
 CACHE_TTL = {"OHLC": 20, "Trades": 2, "Depth": 2, "AssetPairs": 3600, "Ticker": 2}
+BASES_NO_CRIPTO = {
+    "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF",
+    "USDT", "USDC", "DAI", "PYUSD", "EURT", "RLUSD", "USDG", "USDS", "USDE",
+}
 
 
 def _ips_permitidas():
@@ -161,6 +165,59 @@ def resumen_precio_real(trades, libro, ticker24=None, ahora=None):
         "edad_libro_ms": max(0.0, (ahora - libro_ts) * 1000) if libro_ts else None,
         "servidor_ts": ahora,
     }
+
+
+def resumen_mapa_calor(pares, tickers, limite=30):
+    """Activos USD líquidos y movers relevantes para la portada interactiva."""
+    activos = []
+    alias = {"XBT": "BTC", "XDG": "DOGE"}
+    for par_id, datos_par in pares.items():
+        nombre = datos_par.get("wsname", "")
+        if (not nombre.endswith("/USD") or par_id.endswith(".d")
+                or datos_par.get("status") not in (None, "online")):
+            continue
+        base = nombre.split("/", 1)[0]
+        if base.upper() in BASES_NO_CRIPTO:
+            continue
+        ticker = tickers.get(par_id) or tickers.get(datos_par.get("altname"))
+        if not ticker:
+            continue
+        try:
+            ultimo = float(ticker["c"][0])
+            apertura = float(ticker["o"])
+            volumen_base = float(ticker["v"][1])
+            vwap = float(ticker["p"][1])
+            bajo = float(ticker["l"][1])
+            alto = float(ticker["h"][1])
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+        if apertura <= 0 or ultimo <= 0:
+            continue
+        volumen_usd = volumen_base * vwap
+        activos.append({
+            "id": par_id,
+            "nombre": nombre,
+            "simbolo": alias.get(base.upper(), base.upper()),
+            "ultimo": ultimo,
+            "cambio_dia_pct": (ultimo / apertura - 1) * 100,
+            "rango_24h_pct": (alto - bajo) / apertura * 100,
+            "volumen_usd": volumen_usd,
+        })
+
+    por_volumen = sorted(activos, key=lambda x: x["volumen_usd"], reverse=True)
+    principales = por_volumen[:min(18, limite)]
+    elegidos = {x["id"]: x for x in principales}
+    candidatos_movimiento = [x for x in activos if x["volumen_usd"] >= 250_000]
+    candidatos_movimiento.sort(
+        key=lambda x: (abs(x["cambio_dia_pct"]), x["volumen_usd"]), reverse=True
+    )
+    for activo in candidatos_movimiento:
+        if len(elegidos) >= limite:
+            break
+        if activo["id"] not in elegidos:
+            activo["movimiento_destacado"] = True
+            elegidos[activo["id"]] = activo
+    return sorted(elegidos.values(), key=lambda x: x["volumen_usd"], reverse=True)
 
 
 # ---------------------------------------------------------------- analítica
@@ -512,7 +569,7 @@ def narrativa(par, tec, fund, ticker24):
         try:
             o = float(ticker24["o"])
             c = float(ticker24["c"][0])
-            trozos.append(f"{par} {'sube' if c >= o else 'baja'} {abs(c/o-1)*100:.2f}% en 24 h")
+            trozos.append(f"{par} {'sube' if c >= o else 'baja'} {abs(c/o-1)*100:.2f}% desde 00:00 UTC")
         except Exception:
             pass
     p = (tec or {}).get("participacion")
@@ -556,6 +613,24 @@ def pares():
              if v.get("wsname", "").endswith(("/USD", "/USDT", "/EUR"))]
     lista.sort(key=lambda x: x["nombre"])
     return jsonify(lista)
+
+
+@app.route("/api/mapa")
+def mapa():
+    """Mapa compacto: tamaño por volumen 24 h y color desde 00:00 UTC."""
+    try:
+        pares_disponibles = kraken("AssetPairs")
+        tickers = kraken("Ticker")
+        return jsonify({
+            "activos": resumen_mapa_calor(pares_disponibles, tickers),
+            "servidor_ts": time.time(),
+            "criterio": {
+                "tamano": "volumen aproximado negociado en USD durante 24 h",
+                "color": "cambio desde las 00:00 UTC informado por Kraken",
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/precio")

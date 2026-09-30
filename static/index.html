@@ -22,8 +22,29 @@
   .precio-wrap{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
   .precio{font-size:20px;font-weight:600}
   .precio-meta{font-size:11px;color:var(--suave)}
+  .portada{padding:12px 12px 0}
+  .mapa-cab{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+            flex-wrap:wrap;margin-bottom:10px}
+  .mapa-cab h2{margin-bottom:2px}
+  .mapa-leyenda{color:var(--suave);font-size:12px;text-align:right}
+  .mapa-calor{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));
+              grid-auto-rows:68px;gap:6px}
+  .mapa-activo{min-width:0;border:1px solid transparent;border-radius:7px;padding:7px;
+               color:#fff;display:flex;flex-direction:column;justify-content:center;
+               align-items:flex-start;text-align:left;overflow:hidden}
+  .mapa-activo:hover{border-color:rgba(255,255,255,.75)}
+  .mapa-activo.activo{border-color:#fff;box-shadow:0 0 0 2px var(--acento)}
+  .mapa-activo.grande{grid-column:span 2;grid-row:span 2}
+  .mapa-activo.mediano{grid-column:span 2}
+  .mapa-simbolo{font-size:15px;font-weight:600;white-space:nowrap}
+  .mapa-cambio{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mapa-volumen{font-size:10px;color:rgba(255,255,255,.78);white-space:nowrap}
+  .mapa-vacio{grid-column:1/-1;color:var(--suave);padding:20px;text-align:center}
   .envoltorio{display:grid;grid-template-columns:1fr 330px;gap:12px;padding:12px}
-  @media(max-width:900px){.envoltorio{grid-template-columns:1fr}}
+  @media(max-width:900px){
+    .envoltorio{grid-template-columns:1fr}
+    .mapa-calor{grid-template-columns:repeat(6,minmax(0,1fr))}
+  }
   .caja{background:var(--panel);border:1px solid var(--borde);border-radius:10px;padding:12px}
   .caja h2{font-size:12px;margin:0 0 10px;color:var(--suave);text-transform:uppercase;
            letter-spacing:.8px;font-weight:600}
@@ -55,7 +76,11 @@
   .metodo{background:#0d1117;border-radius:7px;padding:9px}
   .metodo-cab{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
   .metodo p{color:var(--suave);font-size:12px;margin:6px 0 0}
-  @media(max-width:520px){.niveles{grid-template-columns:1fr}}
+  @media(max-width:520px){
+    .niveles{grid-template-columns:1fr}
+    .mapa-calor{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:64px}
+    .mapa-leyenda{text-align:left}
+  }
   #estado{color:var(--suave);font-size:12px}
 </style>
 </head>
@@ -78,6 +103,24 @@
   <div class="precio-wrap"><div class="precio" id="precio">—</div>
     <div class="precio-meta" id="precio-meta">sin snapshot</div></div>
 </header>
+
+<div class="portada">
+  <section class="caja" aria-labelledby="titulo-mapa">
+    <div class="mapa-cab">
+      <div>
+        <h2 id="titulo-mapa">Mapa de calor · qué se está moviendo ahora</h2>
+        <div style="color:var(--suave);font-size:12px">Toca un activo para abrir todo su Scope.</div>
+      </div>
+      <div class="mapa-leyenda">Tamaño = volumen USD 24 h · color = desde 00:00 UTC<br>
+        <span style="color:var(--alza)">■ sube</span> · <span style="color:var(--baja)">■ baja</span>
+      </div>
+    </div>
+    <div class="mapa-calor" id="mapa-calor" aria-live="polite">
+      <div class="mapa-vacio">Cargando mercado…</div>
+    </div>
+    <div class="nota" id="mapa-estado">Incluye los pares USD con más actividad y movimientos destacados con volumen suficiente.</div>
+  </section>
+</div>
 
 <div class="envoltorio">
   <div>
@@ -182,12 +225,17 @@
 <script>
 const $ = s => document.querySelector(s);
 let D = null;
+let MAPA = [];
 let cargando = false;
 let cargandoPrecio = false;
+let cargandoMapa = false;
 
 const fmt = (x, d=2) => x==null||isNaN(x) ? "—" :
   x.toLocaleString("es", {minimumFractionDigits:d, maximumFractionDigits:d});
 const pct = x => x==null||isNaN(x) ? "—" : (x*100).toFixed(2)+"%";
+const dineroCompacto = x => x==null||isNaN(x) ? "—" : new Intl.NumberFormat("es",{
+  notation:"compact",style:"currency",currency:"USD",maximumFractionDigits:1
+}).format(x);
 const esc = x => String(x??"").replace(/[&<>'"]/g, c=>({
   "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;"
 }[c]));
@@ -204,6 +252,59 @@ async function cargarPares(){
   }));
   const pref = j.find(p=>p.nombre==="XBT/USD") || j[0];
   if(pref) sel.value = pref.id;
+}
+
+function pintarMapa(){
+  const cont=$("#mapa-calor");
+  if(!MAPA.length){
+    cont.innerHTML='<div class="mapa-vacio">Sin datos de mercado disponibles.</div>';
+    return;
+  }
+  const maxAbs=Math.max(1,...MAPA.map(x=>Math.abs(x.cambio_dia_pct)));
+  const seleccionado=$("#par").value;
+  cont.replaceChildren(...MAPA.map((a,i)=>{
+    const cambio=a.cambio_dia_pct;
+    const intensidad=Math.min(1,Math.abs(cambio)/maxAbs);
+    const alpha=(0.22+intensidad*0.62).toFixed(2);
+    const color=Math.abs(cambio)<0.03
+      ? "rgba(139,148,158,.34)"
+      : cambio>0 ? `rgba(35,134,54,${alpha})` : `rgba(207,53,46,${alpha})`;
+    const b=document.createElement("button");
+    b.type="button";
+    b.className=`mapa-activo ${i<2?"grande":i<8?"mediano":""} ${a.id===seleccionado?"activo":""}`;
+    b.style.background=color;
+    b.setAttribute("aria-label",`${a.simbolo}: ${cambio>=0?"sube":"baja"} ${Math.abs(cambio).toFixed(2)} por ciento desde las 00:00 UTC; volumen 24 horas ${dineroCompacto(a.volumen_usd)}. Abrir Scope.`);
+    b.innerHTML=`<span class="mapa-simbolo">${esc(a.simbolo)}</span>
+      <span class="mapa-cambio">${cambio>=0?"+":""}${cambio.toFixed(2)}%</span>
+      <span class="mapa-volumen">${dineroCompacto(a.volumen_usd)}</span>`;
+    b.onclick=()=>seleccionarDesdeMapa(a.id);
+    return b;
+  }));
+}
+
+async function cargarMapa(){
+  if(cargandoMapa) return;
+  cargandoMapa=true;
+  try{
+    const r=await fetch("/api/mapa");
+    const j=await r.json();
+    if(!r.ok||j.error) throw new Error(j.error||`HTTP ${r.status}`);
+    MAPA=j.activos||[];
+    pintarMapa();
+    $("#mapa-estado").textContent=`${MAPA.length} activos · actualizado ${new Date().toLocaleTimeString("es")} · tocar no ejecuta ninguna operación`;
+  }catch(e){
+    $("#mapa-estado").textContent=`No se pudo actualizar el mapa: ${e.message}`;
+  }finally{ cargandoMapa=false; }
+}
+
+function seleccionarDesdeMapa(par){
+  const sel=$("#par");
+  if(![...sel.options].some(o=>o.value===par)) return;
+  sel.value=par;
+  pintarMapa();
+  cargar();
+  cargarPrecio();
+  document.querySelector(".envoltorio").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 async function cargar(){
@@ -584,12 +685,14 @@ function panelLibro(dec){
 }
 
 $("#refrescar").onclick = cargar;
-$("#par").onchange = ()=>{ cargar(); cargarPrecio(); };
+$("#par").onchange = ()=>{ pintarMapa(); cargar(); cargarPrecio(); };
 $("#intervalo").onchange = cargar;
 window.addEventListener("resize", ()=>D&&pintar());
 setInterval(()=>{ if($("#auto").checked) cargar(); }, 20000);
 setInterval(()=>{ if($("#auto").checked && !document.hidden) cargarPrecio(); }, 3000);
-cargarPares().then(cargar).catch(e=>$("#estado").textContent="error: "+e.message);
+setInterval(()=>{ if($("#auto").checked && !document.hidden) cargarMapa(); }, 30000);
+cargarPares().then(async()=>{ await cargarMapa(); await cargar(); })
+  .catch(e=>$("#estado").textContent="error: "+e.message);
 </script>
 </body>
 </html>

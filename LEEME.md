@@ -127,7 +127,13 @@ quién es agresivo, dónde está la liquidez. Eso es lo que muestra.
   pero no entra en ATR, perfil, participación ni estadísticas de stops.
 - `GET /api/salud` permite comprobar el servidor sin depender de que Kraken esté disponible.
 - `GET /api/precio` entrega el snapshot ligero usado por el refresco de 3 segundos.
+- `GET /api/mapa` resume pares USD líquidos y movers con volumen para el mapa de calor.
 - `technical.py` contiene detección de pivotes, estructura Dow simplificada, HCH y escenarios.
+
+La portada muestra un mapa de calor de hasta 30 criptoactivos: el tamaño relativo prioriza
+el volumen negociado en USD durante 24 horas y el color refleja el cambio desde las 00:00 UTC,
+que es como Kraken define la apertura diaria. Incluye también movers destacados solo cuando superan un
+umbral mínimo de volumen; tocar una celda selecciona ese par y abre su análisis completo.
 
 ### Acceso temporal por IPv6
 

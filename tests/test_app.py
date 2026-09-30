@@ -51,6 +51,31 @@ class AnaliticaTests(unittest.TestCase):
         self.assertAlmostEqual(p["edad_trade_ms"], 500.0)
         self.assertAlmostEqual(p["edad_libro_ms"], 200.0)
 
+    def test_mapa_calor_excluye_estables_y_conserva_mover_con_volumen(self):
+        pares = {
+            "XXBTZUSD": {"wsname": "XBT/USD", "altname": "XBTUSD", "status": "online"},
+            "XETHZUSD": {"wsname": "ETH/USD", "altname": "ETHUSD", "status": "online"},
+            "QNTUSD": {"wsname": "QNT/USD", "altname": "QNTUSD", "status": "online"},
+            "USDTZUSD": {"wsname": "USDT/USD", "altname": "USDTUSD", "status": "online"},
+        }
+
+        def ticker(ultimo, apertura, volumen, vwap, bajo, alto):
+            return {"c": [str(ultimo)], "o": str(apertura),
+                    "v": ["0", str(volumen)], "p": ["0", str(vwap)],
+                    "l": ["0", str(bajo)], "h": ["0", str(alto)]}
+
+        tickers = {
+            "XXBTZUSD": ticker(105, 100, 100_000, 102, 95, 108),
+            "XETHZUSD": ticker(202, 200, 20_000, 201, 190, 210),
+            "QNTUSD": ticker(130, 100, 3_000, 110, 95, 135),
+            "USDTZUSD": ticker(1, 1, 500_000_000, 1, .99, 1.01),
+        }
+        resultado = app.resumen_mapa_calor(pares, tickers, limite=3)
+        self.assertEqual({x["simbolo"] for x in resultado}, {"BTC", "ETH", "QNT"})
+        qnt = next(x for x in resultado if x["simbolo"] == "QNT")
+        self.assertAlmostEqual(qnt["cambio_dia_pct"], 30.0)
+        self.assertNotIn("USDTZUSD", {x["id"] for x in resultado})
+
 
 class PersistenciaTests(unittest.TestCase):
     def test_registro_oi_preserva_otros_simbolos(self):
@@ -97,6 +122,15 @@ class ApiTests(unittest.TestCase):
         r = self.client.get("/api/salud")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.get_json(), {"estado": "ok", "credenciales": False})
+
+    def test_api_mapa_devuelve_activos(self):
+        pares = {"XXBTZUSD": {"wsname": "XBT/USD", "altname": "XBTUSD", "status": "online"}}
+        tickers = {"XXBTZUSD": {"c": ["105"], "o": "100", "v": ["0", "1000"],
+                                  "p": ["0", "102"], "l": ["0", "95"], "h": ["0", "108"]}}
+        with mock.patch.object(app, "kraken", side_effect=[pares, tickers]):
+            r = self.client.get("/api/mapa")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["activos"][0]["simbolo"], "BTC")
 
     def test_intervalo_invalido_no_llama_a_kraken(self):
         with mock.patch.object(app, "kraken") as llamada:
