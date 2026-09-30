@@ -135,6 +135,10 @@ el volumen negociado en USD durante 24 horas y el color refleja el cambio desde 
 que es como Kraken define la apertura diaria. Incluye también movers destacados solo cuando superan un
 umbral mínimo de volumen; tocar una celda selecciona ese par y abre su análisis completo.
 
+Las ocho tarjetas de métodos funcionan como interruptores del gráfico. Un toque añade su capa
+y otro la retira; se pueden mantener varias simultáneamente. La selección se conserva durante
+los refrescos y cambios de par en ese navegador.
+
 ### Acceso temporal por IPv6
 
 Por defecto sigue escuchando únicamente en `127.0.0.1`. Para probarlo desde un dispositivo

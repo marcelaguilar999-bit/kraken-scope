@@ -73,9 +73,16 @@
   .nivel{font-variant-numeric:tabular-nums}
   .nivel span{display:block;color:var(--suave);font-size:11px}
   .metodos{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
-  .metodo{background:#0d1117;border-radius:7px;padding:9px}
+  .metodo{background:#0d1117;border:1px solid transparent;border-radius:7px;padding:9px;
+          color:var(--texto);text-align:left;width:100%;min-height:88px}
+  .metodo:hover{border-color:var(--acento)}
+  .metodo.activo{border-color:var(--acento);box-shadow:0 0 0 1px var(--acento)}
   .metodo-cab{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
   .metodo p{color:var(--suave);font-size:12px;margin:6px 0 0}
+  .capas-grafico{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+                 min-height:26px;margin:0 0 8px;color:var(--suave);font-size:11px}
+  .capa-leyenda{display:inline-flex;align-items:center;gap:5px;color:var(--texto)}
+  .capa-leyenda i{width:14px;height:3px;border-radius:2px;display:inline-block}
   @media(max-width:520px){
     .niveles{grid-template-columns:1fr}
     .mapa-calor{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:64px}
@@ -149,13 +156,14 @@
     <div class="caja" style="margin-top:12px">
       <h2>Métodos disponibles · tú eliges y confirmas</h2>
       <div class="metodos" id="metodos"></div>
-      <div class="nota">“Disponible” significa que el cálculo existe. El estado dice si ahora
-        hay setup, espera o solo una capa de confirmación; no equivale a recomendación.</div>
+      <div class="nota">Toca un método para añadirlo al gráfico y vuelve a tocarlo para quitarlo.
+        Puedes comparar varias capas a la vez. El estado no equivale a recomendación.</div>
     </div>
 
     <div class="caja" style="margin-top:12px">
       <h2>Precio y perfil de volumen · dónde se negoció de verdad</h2>
-      <canvas id="grafico" height="420"></canvas>
+      <div class="capas-grafico" id="capas-grafico" aria-live="polite">Sin capas técnicas seleccionadas.</div>
+      <canvas id="grafico" height="420" role="img" aria-label="Precio, perfil de volumen y capas técnicas seleccionadas"></canvas>
       <div class="nota">
         La franja de la derecha es el volumen negociado en cada nivel de precio.
         La línea <b style="color:var(--poc)">ámbar</b> es el POC (el precio con más volumen);
@@ -229,6 +237,15 @@ let MAPA = [];
 let cargando = false;
 let cargandoPrecio = false;
 let cargandoMapa = false;
+const COLORES_CAPAS={
+  dow:"#58a6ff",hch:"#f0883e",donchian:"#d29922",pullback:"#a371f7",
+  valor:"#39c5cf",perfil:"#db61a2",flujo:"#bc8cff",liquidez:"#8b949e"
+};
+let CAPAS=new Set();
+try{
+  const guardadas=JSON.parse(localStorage.getItem("kraken-scope-capas")||"[]");
+  CAPAS=new Set(guardadas.filter(x=>Object.hasOwn(COLORES_CAPAS,x)));
+}catch(e){ CAPAS=new Set(); }
 
 const fmt = (x, d=2) => x==null||isNaN(x) ? "—" :
   x.toLocaleString("es", {minimumFractionDigits:d, maximumFractionDigits:d});
@@ -395,7 +412,8 @@ function panelEscenarios(dec){
 
 function panelMetodos(){
   const metodos=D.estructura?.metodos||[];
-  $("#metodos").innerHTML=metodos.map(m=>{
+  const cont=$("#metodos");
+  cont.innerHTML=metodos.map(m=>{
     let estado=m.estado;
     if(m.id==="flujo" && D.flujo){
       estado=Math.abs(D.flujo.ratio)<0.08?"sin dominancia":D.flujo.ratio>0?"comprador dominante":"vendedor dominante";
@@ -404,11 +422,36 @@ function panelMetodos(){
       estado=Math.abs(D.libro.desequilibrio)<0.08?"libro equilibrado":D.libro.desequilibrio>0?"más liquidez bid":"más liquidez ask";
     }
     const activo=!/sin |dentro|insuficiente|equilibrado/.test(estado);
-    return `<div class="metodo"><div class="metodo-cab"><b>${esc(m.nombre)}</b>
+    const visible=CAPAS.has(m.id);
+    return `<button type="button" class="metodo ${visible?"activo":""}" data-metodo="${esc(m.id)}"
+      aria-pressed="${visible}" aria-label="${visible?"Quitar":"Mostrar"} ${esc(m.nombre)} en el gráfico">
+      <div class="metodo-cab"><b>${esc(m.nombre)}</b>
       <span class="pill ${activo?"verde":"gris"}">${esc(estado)}</span></div>
       <div style="color:var(--acento);font-size:11px;margin-top:3px">${esc(m.familia)}</div>
-      <p>${esc(m.valida)}</p></div>`;
+      <p>${esc(m.valida)}</p></button>`;
   }).join("");
+  cont.querySelectorAll("[data-metodo]").forEach(b=>{
+    b.onclick=()=>alternarCapa(b.dataset.metodo);
+  });
+  pintarLeyendaCapas(metodos);
+}
+
+function alternarCapa(id){
+  if(CAPAS.has(id)) CAPAS.delete(id); else CAPAS.add(id);
+  localStorage.setItem("kraken-scope-capas",JSON.stringify([...CAPAS]));
+  panelMetodos();
+  if(D){
+    const dec=D.ultimo>1000?1:D.ultimo>10?3:5;
+    grafico(dec);
+  }
+}
+
+function pintarLeyendaCapas(metodos=D?.estructura?.metodos||[]){
+  const el=$("#capas-grafico");
+  const activas=metodos.filter(m=>CAPAS.has(m.id));
+  el.innerHTML=activas.length ? activas.map(m=>
+    `<span class="capa-leyenda"><i style="background:${COLORES_CAPAS[m.id]}"></i>${esc(m.nombre)}</span>`
+  ).join("") : "Sin capas técnicas seleccionadas.";
 }
 
 function panelFundamental(dec){
@@ -510,6 +553,29 @@ function panelTecnico(dec){
   $("#tecnico").innerHTML = h || "<div class='nota' style='border:0;padding:0;margin:0'>Sin datos.</div>";
 }
 
+function mediaMovilSerie(velas,n){
+  let suma=0;
+  return velas.map((vela,i)=>{
+    suma+=vela.close;
+    if(i>=n) suma-=velas[i-n].close;
+    return i>=n-1?suma/n:null;
+  });
+}
+
+function trazarSeriePrecio(ctx,serie,paso,y,color,dash=[]){
+  ctx.strokeStyle=color; ctx.lineWidth=1.6*devicePixelRatio;
+  ctx.setLineDash(dash.map(x=>x*devicePixelRatio));
+  ctx.beginPath(); let iniciada=false;
+  serie.forEach((valor,i)=>{
+    if(valor==null||!Number.isFinite(valor)) return;
+    const xx=i*paso+paso/2, yy=y(valor);
+    iniciada?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);
+    iniciada=true;
+  });
+  if(iniciada) ctx.stroke();
+  ctx.setLineDash([]);
+}
+
 function grafico(dec){
   const c = $("#grafico"), ctx = c.getContext("2d");
   const W = c.width = c.clientWidth * devicePixelRatio;
@@ -561,42 +627,107 @@ function grafico(dec){
   ctx.strokeStyle="#e6edf3"; ctx.lineWidth=Math.max(1,devicePixelRatio);
   ctx.beginPath(); ctx.moveTo(0,y(D.ultimo)); ctx.lineTo(W,y(D.ultimo)); ctx.stroke();
 
-  // patrón geométrico detectado
-  const patron=D.estructura?.patron;
-  if(patron?.puntos?.length){
-    const porTiempo=new Map(v.map((k,i)=>[k.t,i]));
-    const puntos=patron.puntos.filter(p=>porTiempo.has(p.t));
-    if(puntos.length>=3){
-      ctx.strokeStyle=patron.sesgo==="largo"?"#3fb950":"#f85149";
-      ctx.lineWidth=2*devicePixelRatio; ctx.beginPath();
+  const porTiempo=new Map(v.map((k,i)=>[k.t,i]));
+  ctx.font=`${10*devicePixelRatio}px ui-sans-serif`;
+  const lineaNivel=(nivel,color,etq,dash=[3,4],labelX=6,x0=0,x1=areaW)=>{
+    if(nivel==null||!Number.isFinite(nivel)||nivel<lo||nivel>hi) return;
+    ctx.strokeStyle=color; ctx.lineWidth=Math.max(1,devicePixelRatio);
+    ctx.setLineDash(dash.map(x=>x*devicePixelRatio));
+    ctx.beginPath(); ctx.moveTo(x0,y(nivel)); ctx.lineTo(x1,y(nivel)); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle=color;
+    ctx.fillText(`${etq} ${fmt(nivel,dec)}`,labelX*devicePixelRatio,y(nivel)-3*devicePixelRatio);
+  };
+  const nivelesCOI=(datos,color,prefijo,labelX)=>{
+    if(!datos) return;
+    lineaNivel(datos.confirmacion,color,`${prefijo} C`,[5,3],labelX);
+    lineaNivel(datos.objetivo,color,`${prefijo} O`,[2,4],labelX);
+    lineaNivel(datos.invalidacion,color,`${prefijo} I`,[1,4],labelX);
+  };
+
+  // Cada capa solo aparece cuando su método está seleccionado.
+  const dow=D.estructura?.dow;
+  if(CAPAS.has("dow")&&dow?.pivotes?.length){
+    const puntos=[...dow.pivotes].sort((a,b)=>a.i-b.i).filter(p=>porTiempo.has(p.t));
+    if(puntos.length){
+      ctx.strokeStyle=COLORES_CAPAS.dow;ctx.lineWidth=2*devicePixelRatio;ctx.beginPath();
       puntos.forEach((p,i)=>{
-        const xx=porTiempo.get(p.t)*paso+paso/2, yy=y(p.precio);
+        const xx=porTiempo.get(p.t)*paso+paso/2,yy=y(p.precio);
         i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);
       });
       ctx.stroke();
-      ctx.font=`${10*devicePixelRatio}px ui-sans-serif`;
       puntos.forEach(p=>{
-        const xx=porTiempo.get(p.t)*paso+paso/2, yy=y(p.precio);
-        ctx.fillStyle=patron.sesgo==="largo"?"#3fb950":"#f85149";
-        ctx.beginPath(); ctx.arc(xx,yy,3*devicePixelRatio,0,Math.PI*2); ctx.fill();
+        const xx=porTiempo.get(p.t)*paso+paso/2,yy=y(p.precio);
+        ctx.fillStyle=COLORES_CAPAS.dow;ctx.beginPath();ctx.arc(xx,yy,3*devicePixelRatio,0,Math.PI*2);ctx.fill();
+        ctx.fillText(p.tipo==="alto"?"H":"L",xx+4*devicePixelRatio,yy-5*devicePixelRatio);
+      });
+    }
+    nivelesCOI(dow,COLORES_CAPAS.dow,"Dow",6);
+  }
+
+  const patron=D.estructura?.patron;
+  if(CAPAS.has("hch")&&patron?.puntos?.length){
+    const puntos=patron.puntos.filter(p=>porTiempo.has(p.t));
+    if(puntos.length>=3){
+      ctx.strokeStyle=COLORES_CAPAS.hch;ctx.lineWidth=2*devicePixelRatio;ctx.beginPath();
+      puntos.forEach((p,i)=>{
+        const xx=porTiempo.get(p.t)*paso+paso/2,yy=y(p.precio);
+        i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);
+      });
+      ctx.stroke();
+      puntos.forEach(p=>{
+        const xx=porTiempo.get(p.t)*paso+paso/2,yy=y(p.precio);
+        ctx.fillStyle=COLORES_CAPAS.hch;ctx.beginPath();ctx.arc(xx,yy,3*devicePixelRatio,0,Math.PI*2);ctx.fill();
         ctx.fillText(p.etiqueta,xx+4*devicePixelRatio,yy-5*devicePixelRatio);
       });
     }
+    nivelesCOI(patron,COLORES_CAPAS.hch,"HCH",90);
   }
 
-  // confirmación/objetivo/invalidación del primer escenario
-  const esc0=D.estructura?.escenarios?.[0];
-  if(esc0){
-    [["C",esc0.confirmacion,"#58a6ff"],["O",esc0.objetivo,"#d29922"],
-     ["I",esc0.invalidacion,"#8b949e"]].forEach(([etq,nivel,color])=>{
-      if(nivel==null||nivel<lo||nivel>hi) return;
-      ctx.strokeStyle=color; ctx.lineWidth=Math.max(1,devicePixelRatio);
-      ctx.setLineDash([3*devicePixelRatio,4*devicePixelRatio]);
-      ctx.beginPath(); ctx.moveTo(0,y(nivel)); ctx.lineTo(areaW,y(nivel)); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle=color;
-      ctx.fillText(`${etq} ${fmt(nivel,dec)}`,6*devicePixelRatio,y(nivel)-3*devicePixelRatio);
-    });
+  const donchian=D.estructura?.donchian;
+  if(CAPAS.has("donchian")&&donchian){
+    lineaNivel(donchian.alto,COLORES_CAPAS.donchian,"DC alto",[7,4],174);
+    lineaNivel(donchian.bajo,COLORES_CAPAS.donchian,"DC bajo",[7,4],174);
   }
+
+  const pullback=D.estructura?.pullback;
+  if(CAPAS.has("pullback")){
+    trazarSeriePrecio(ctx,mediaMovilSerie(v,20),paso,y,"rgba(163,113,247,1)");
+    trazarSeriePrecio(ctx,mediaMovilSerie(v,60),paso,y,"rgba(163,113,247,.72)",[5,3]);
+    trazarSeriePrecio(ctx,mediaMovilSerie(v,120),paso,y,"rgba(163,113,247,.45)",[2,4]);
+    if(pullback) nivelesCOI(pullback,COLORES_CAPAS.pullback,"PB",250);
+  }
+
+  if(CAPAS.has("valor")){
+    lineaNivel(D.perfil.va_hi,COLORES_CAPAS.valor,"VAH",[6,3],6);
+    lineaNivel(D.perfil.poc,COLORES_CAPAS.valor,"POC",[3,3],6);
+    lineaNivel(D.perfil.va_lo,COLORES_CAPAS.valor,"VAL",[6,3],6);
+  }
+
+  const volumen=D.estructura?.volumen;
+  if(CAPAS.has("perfil")&&volumen){
+    lineaNivel(volumen.nodo_alto_arriba,COLORES_CAPAS.perfil,"Nodo ↑",[2,3],90);
+    lineaNivel(volumen.poc,COLORES_CAPAS.perfil,"POC",[2,3],90);
+    lineaNivel(volumen.nodo_alto_abajo,COLORES_CAPAS.perfil,"Nodo ↓",[2,3],90);
+  }
+
+  if(CAPAS.has("flujo")&&D.flujo?.cvd?.length>1){
+    const serie=D.flujo.cvd.map(x=>x.cvd),min=Math.min(...serie),max=Math.max(...serie),rr=(max-min)||1;
+    const arriba=H*.73,altoMini=H*.23;
+    ctx.strokeStyle=COLORES_CAPAS.flujo;ctx.lineWidth=1.7*devicePixelRatio;ctx.beginPath();
+    serie.forEach((valor,i)=>{
+      const xx=i/(serie.length-1)*areaW,yy=arriba+(max-valor)/rr*altoMini;
+      i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);
+    });
+    ctx.stroke();ctx.fillStyle=COLORES_CAPAS.flujo;
+    ctx.fillText("CVD · escala propia",6*devicePixelRatio,arriba-4*devicePixelRatio);
+  }
+
+  if(CAPAS.has("liquidez")&&D.libro){
+    (D.libro.bids||[]).slice(0,3).forEach((m,i)=>lineaNivel(m.precio,"#3fb950",`Bid ${i+1}`,[1,3],174));
+    (D.libro.asks||[]).slice(0,3).forEach((m,i)=>lineaNivel(m.precio,"#f85149",`Ask ${i+1}`,[1,3],174));
+  }
+
+  c.setAttribute("aria-label",`Gráfico de precio. Capas activas: ${[...CAPAS].join(", ")||"ninguna"}.`);
 }
 
 function graficoCVD(){
