@@ -19,7 +19,9 @@
                 border-radius:6px;padding:6px 10px;font-size:13px}
   button{cursor:pointer}
   button:hover{border-color:var(--acento)}
-  .precio{margin-left:auto;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+  .precio-wrap{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+  .precio{font-size:20px;font-weight:600}
+  .precio-meta{font-size:11px;color:var(--suave)}
   .envoltorio{display:grid;grid-template-columns:1fr 330px;gap:12px;padding:12px}
   @media(max-width:900px){.envoltorio{grid-template-columns:1fr}}
   .caja{background:var(--panel);border:1px solid var(--borde);border-radius:10px;padding:12px}
@@ -39,6 +41,21 @@
   .verde{background:rgba(63,185,80,.15);color:var(--alza)}
   .rojo{background:rgba(248,81,73,.15);color:var(--baja)}
   .gris{background:rgba(139,148,158,.15);color:var(--suave)}
+  .metricas{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+  .metrica{background:#0d1117;border-radius:7px;padding:8px}
+  .metrica span{display:block;color:var(--suave);font-size:11px}
+  .metrica b{display:block;font-size:15px;font-variant-numeric:tabular-nums;margin-top:2px}
+  .escenario{padding:9px 0;border-top:1px solid var(--borde)}
+  .escenario:first-child{border-top:0;padding-top:0}
+  .escenario-cab{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .niveles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:7px}
+  .nivel{font-variant-numeric:tabular-nums}
+  .nivel span{display:block;color:var(--suave);font-size:11px}
+  .metodos{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+  .metodo{background:#0d1117;border-radius:7px;padding:9px}
+  .metodo-cab{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .metodo p{color:var(--suave);font-size:12px;margin:6px 0 0}
+  @media(max-width:520px){.niveles{grid-template-columns:1fr}}
   #estado{color:var(--suave);font-size:12px}
 </style>
 </head>
@@ -55,21 +72,42 @@
   </select>
   <button id="refrescar">Refrescar</button>
   <label style="font-size:12px;color:var(--suave)">
-    <input type="checkbox" id="auto" checked> auto 20s
+    <input type="checkbox" id="auto" checked> precio 3s · análisis 20s
   </label>
   <span id="estado"></span>
-  <div class="precio" id="precio">—</div>
+  <div class="precio-wrap"><div class="precio" id="precio">—</div>
+    <div class="precio-meta" id="precio-meta">sin snapshot</div></div>
 </header>
 
 <div class="envoltorio">
   <div>
-    <div class="caja" id="caja-porque" style="border-color:#2d4a6b">
+    <div class="caja">
+      <h2>Precio real · ejecución y latencia</h2>
+      <div class="metricas" id="precio-real"></div>
+      <div class="nota" id="nota-latencia"></div>
+    </div>
+
+    <div class="caja" id="caja-porque" style="border-color:#2d4a6b;margin-top:12px">
       <h2>Por qué se está moviendo</h2>
       <div id="porque" style="font-size:15px;line-height:1.65"></div>
       <div class="nota">
         Todo lo de arriba son hechos medidos ahora mismo, encadenados. Describe el movimiento
         que ya está ocurriendo; no dice qué va a pasar después.
       </div>
+    </div>
+
+    <div class="caja" style="margin-top:12px;border-color:#3d4652">
+      <h2>Opciones técnicas · escenarios condicionales</h2>
+      <div id="escenarios"></div>
+      <div class="nota">Un objetivo es una proyección geométrica, no una promesa. Cada opción
+        solo cobra sentido después de su confirmación y deja de valer en la invalidación.</div>
+    </div>
+
+    <div class="caja" style="margin-top:12px">
+      <h2>Métodos disponibles · tú eliges y confirmas</h2>
+      <div class="metodos" id="metodos"></div>
+      <div class="nota">“Disponible” significa que el cálculo existe. El estado dice si ahora
+        hay setup, espera o solo una capa de confirmación; no equivale a recomendación.</div>
     </div>
 
     <div class="caja" style="margin-top:12px">
@@ -131,11 +169,11 @@
     <div class="caja" style="margin-top:12px">
       <h2>Lo que esta herramienta no hace</h2>
       <div class="nota" style="border:0;padding:0;margin:0">
-        No da señales ni pronostica dirección, a propósito. Nueve meses de investigación
+        No ejecuta operaciones ni afirma que un objetivo vaya a cumplirse. Nueve meses de investigación
         (Odette e5/e6 y 212 configuraciones de order flow) mostraron que la predicción
         direccional de corto plazo no sobrevive fuera de muestra. Esto muestra
-        <b>estructura</b>: dónde hay volumen, cuánto se mueve el par, quién es agresivo
-        y dónde está la liquidez. La decisión es tuya.
+        <b>estructura y escenarios condicionales</b>: confirmación, proyección e invalidación.
+        La lectura final y el trade son tuyos.
       </div>
     </div>
   </div>
@@ -145,6 +183,7 @@
 const $ = s => document.querySelector(s);
 let D = null;
 let cargando = false;
+let cargandoPrecio = false;
 
 const fmt = (x, d=2) => x==null||isNaN(x) ? "—" :
   x.toLocaleString("es", {minimumFractionDigits:d, maximumFractionDigits:d});
@@ -172,10 +211,12 @@ async function cargar(){
   cargando = true;
   $("#estado").textContent = "cargando…";
   try{
+    const inicio = performance.now();
     const sel = $("#par");
     const qs = new URLSearchParams({par:sel.value, intervalo:$("#intervalo").value});
     const r = await fetch(`/api/mercado?${qs}`);
     D = await r.json();
+    if(D.latencia) D.latencia.navegador_ms = performance.now()-inicio;
     if(!r.ok || D.error){ $("#estado").textContent = "error: "+(D.error||`HTTP ${r.status}`); return; }
     pintar();
     $("#estado").textContent = "actualizado " + new Date().toLocaleTimeString("es");
@@ -183,12 +224,90 @@ async function cargar(){
   finally{ cargando = false; }
 }
 
+async function cargarPrecio(){
+  if(cargandoPrecio || !$("#par").value) return;
+  cargandoPrecio = true;
+  try{
+    const inicio=performance.now();
+    const qs=new URLSearchParams({par:$("#par").value});
+    const r=await fetch(`/api/precio?${qs}`);
+    const j=await r.json();
+    if(!r.ok || j.error) return;
+    j.latencia.navegador_ms=performance.now()-inicio;
+    if(D && D.par===j.par){
+      D.precio_real={...(D.precio_real||{}),...j.precio_real}; D.latencia=j.latencia;
+      if(j.precio_real.ultimo_trade!=null) D.ultimo=j.precio_real.ultimo_trade;
+      const dec=D.ultimo>1000?1:D.ultimo>10?3:5;
+      panelPrecio(dec); grafico(dec);
+    }
+  }catch(e){ /* el análisis completo conserva el último snapshot válido */ }
+  finally{ cargandoPrecio=false; }
+}
+
 function pintar(){
   const dec = D.ultimo > 1000 ? 1 : D.ultimo > 10 ? 3 : 5;
   $("#precio").textContent = fmt(D.ultimo, dec);
   $("#porque").textContent = D.porque || "Sin datos suficientes para describir el movimiento.";
-  grafico(dec); graficoCVD(); panelStops(dec); panelContexto(dec);
-  panelPresion(); panelLibro(dec); panelFundamental(dec); panelTecnico(dec);
+  grafico(dec); graficoCVD(); panelStops(dec); panelContexto(dec); panelPrecio(dec);
+  panelPresion(); panelLibro(dec); panelFundamental(dec); panelTecnico(dec); panelEscenarios(dec); panelMetodos();
+}
+
+function panelPrecio(dec){
+  const p=D.precio_real||{}, l=D.latencia||{};
+  const navegador=l.navegador_ms, backend=l.backend_ms;
+  const fuera= navegador!=null&&backend!=null ? Math.max(0,navegador-backend) : null;
+  const edad=p.edad_trade_ms!=null ? p.edad_trade_ms+(fuera||0) : null;
+  const cacheTrade=l.endpoints?.trades?.cache;
+  $("#precio").textContent=fmt(p.ultimo_trade??D.ultimo,dec);
+  $("#precio-meta").textContent=`trade ${edad==null?"—":fmt(edad,0)+" ms"} · RTT ${navegador==null?"—":fmt(navegador,0)+" ms"}`;
+  $("#precio-real").innerHTML=`
+    <div class="metrica"><span>Último trade</span><b>${fmt(p.ultimo_trade,dec)}</b></div>
+    <div class="metrica"><span>Bid · vender ahora</span><b style="color:var(--alza)">${fmt(p.bid,dec)}</b></div>
+    <div class="metrica"><span>Ask · comprar ahora</span><b style="color:var(--baja)">${fmt(p.ask,dec)}</b></div>
+    <div class="metrica"><span>Precio medio</span><b>${fmt(p.medio,dec)}</b></div>
+    <div class="metrica"><span>Spread</span><b>${fmt(p.spread,dec)} · ${pct(p.spread_pct)}</b></div>
+    <div class="metrica"><span>Mark perpetuo</span><b>${fmt(p.mark_perpetuo,dec)}</b></div>
+    <div class="metrica"><span>RTT navegador</span><b>${navegador==null?"—":fmt(navegador,1)+" ms"}</b></div>
+    <div class="metrica"><span>Backend completo</span><b>${backend==null?"—":fmt(backend,1)+" ms"}</b></div>`;
+  $("#nota-latencia").innerHTML=`Edad del último trade al recibir: <b>${edad==null?"—":fmt(edad,0)+" ms"}</b>.
+    Fuera del backend: <b>${fuera==null?"—":fmt(fuera,1)+" ms"}</b>.
+    Trades: <b>${cacheTrade===true?"caché":cacheTrade===false?"consulta Kraken":"—"}</b>.
+    La edad usa el timestamp del trade y el reloj local; no es latencia unidireccional de red.`;
+}
+
+function panelEscenarios(dec){
+  const escenarios=D.estructura?.escenarios||[];
+  if(!escenarios.length){
+    $("#escenarios").innerHTML="<div class='nota' style='border:0;padding:0;margin:0'>No hay una estructura suficientemente limpia en esta ventana.</div>";
+    return;
+  }
+  $("#escenarios").innerHTML=escenarios.map(s=>{
+    const clase=s.sesgo==="largo"?"verde":s.sesgo==="corto"?"rojo":"gris";
+    return `<div class="escenario"><div class="escenario-cab"><b>${esc(s.nombre)}</b>
+      <span><span class="pill ${clase}">${esc(s.sesgo)}</span> <span class="pill gris">${esc(s.estado)}</span></span></div>
+      <div class="niveles"><div class="nivel"><span>Confirmación</span><b>${fmt(s.confirmacion,dec)}</b></div>
+      <div class="nivel"><span>Objetivo medido</span><b>${fmt(s.objetivo,dec)}</b></div>
+      <div class="nivel"><span>Invalidación</span><b>${fmt(s.invalidacion,dec)}</b></div></div>
+      <div style="color:var(--suave);font-size:12px;margin-top:5px">${esc(s.fundamento)}</div></div>`;
+  }).join("");
+}
+
+function panelMetodos(){
+  const metodos=D.estructura?.metodos||[];
+  $("#metodos").innerHTML=metodos.map(m=>{
+    let estado=m.estado;
+    if(m.id==="flujo" && D.flujo){
+      estado=Math.abs(D.flujo.ratio)<0.08?"sin dominancia":D.flujo.ratio>0?"comprador dominante":"vendedor dominante";
+    }
+    if(m.id==="liquidez" && D.libro){
+      estado=Math.abs(D.libro.desequilibrio)<0.08?"libro equilibrado":D.libro.desequilibrio>0?"más liquidez bid":"más liquidez ask";
+    }
+    const activo=!/sin |dentro|insuficiente|equilibrado/.test(estado);
+    return `<div class="metodo"><div class="metodo-cab"><b>${esc(m.nombre)}</b>
+      <span class="pill ${activo?"verde":"gris"}">${esc(estado)}</span></div>
+      <div style="color:var(--acento);font-size:11px;margin-top:3px">${esc(m.familia)}</div>
+      <p>${esc(m.valida)}</p></div>`;
+  }).join("");
 }
 
 function panelFundamental(dec){
@@ -233,7 +352,24 @@ function panelFundamental(dec){
 
 function panelTecnico(dec){
   const t = D.tecnico || {};
+  const e = D.estructura || {};
   let h = "";
+  if(e.dow){
+    const d=e.dow, clase=d.estado==="alcista"?"verde":d.estado==="bajista"?"rojo":"gris";
+    h += `<div class="fila"><span>Dow simplificado</span><b><span class="pill ${clase}">${esc(d.estado)}</span></b></div>
+      <div class="nota" style="margin:6px 0 10px">${esc(d.lectura||"")}</div>`;
+  }
+  if(e.patron){
+    const p=e.patron, clase=p.sesgo==="largo"?"verde":"rojo";
+    h += `<div class="fila"><span>Patrón geométrico</span><b><span class="pill ${clase}">${esc(p.estado)}</span></b></div>
+      <div class="fila"><span>${esc(p.nombre)}</span><b>${p.calidad_geometrica}% geometría</b></div>`;
+  }
+  if(e.volumen){
+    const v=e.volumen;
+    h += `<div class="fila"><span>Volumen en precio actual</span><b>${fmt(v.volumen_relativo_actual,2)}× mediana</b></div>
+      <div class="fila"><span>Nodo fuerte debajo</span><b>${fmt(v.nodo_alto_abajo,dec)}</b></div>
+      <div class="fila"><span>Nodo fuerte arriba</span><b>${fmt(v.nodo_alto_arriba,dec)}</b></div>`;
+  }
   if(t.valor){
     const fuera = t.valor.zona !== "dentro del área de valor";
     h += `<div class="fila"><span>Respecto al valor</span>
@@ -268,8 +404,8 @@ function panelTecnico(dec){
         : `Se mueve con bastante independencia de BTC, así que lo que pasa aquí es más propio
            de esta moneda que del mercado.`}</div>`;
   }
-  h += `<div class="nota">Esto describe el estado actual del precio. La alineación de medias es
-    un hecho, no una señal: en horizontes de scalping no tiene valor predictivo demostrado.</div>`;
+  h += `<div class="nota">Dow y HCH son lecturas mecánicas de pivotes, no predictores validados.
+    “Calidad” solo mide simetría geométrica; no es probabilidad de acierto.</div>`;
   $("#tecnico").innerHTML = h || "<div class='nota' style='border:0;padding:0;margin:0'>Sin datos.</div>";
 }
 
@@ -323,6 +459,43 @@ function grafico(dec){
   // precio actual
   ctx.strokeStyle="#e6edf3"; ctx.lineWidth=Math.max(1,devicePixelRatio);
   ctx.beginPath(); ctx.moveTo(0,y(D.ultimo)); ctx.lineTo(W,y(D.ultimo)); ctx.stroke();
+
+  // patrón geométrico detectado
+  const patron=D.estructura?.patron;
+  if(patron?.puntos?.length){
+    const porTiempo=new Map(v.map((k,i)=>[k.t,i]));
+    const puntos=patron.puntos.filter(p=>porTiempo.has(p.t));
+    if(puntos.length>=3){
+      ctx.strokeStyle=patron.sesgo==="largo"?"#3fb950":"#f85149";
+      ctx.lineWidth=2*devicePixelRatio; ctx.beginPath();
+      puntos.forEach((p,i)=>{
+        const xx=porTiempo.get(p.t)*paso+paso/2, yy=y(p.precio);
+        i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);
+      });
+      ctx.stroke();
+      ctx.font=`${10*devicePixelRatio}px ui-sans-serif`;
+      puntos.forEach(p=>{
+        const xx=porTiempo.get(p.t)*paso+paso/2, yy=y(p.precio);
+        ctx.fillStyle=patron.sesgo==="largo"?"#3fb950":"#f85149";
+        ctx.beginPath(); ctx.arc(xx,yy,3*devicePixelRatio,0,Math.PI*2); ctx.fill();
+        ctx.fillText(p.etiqueta,xx+4*devicePixelRatio,yy-5*devicePixelRatio);
+      });
+    }
+  }
+
+  // confirmación/objetivo/invalidación del primer escenario
+  const esc0=D.estructura?.escenarios?.[0];
+  if(esc0){
+    [["C",esc0.confirmacion,"#58a6ff"],["O",esc0.objetivo,"#d29922"],
+     ["I",esc0.invalidacion,"#8b949e"]].forEach(([etq,nivel,color])=>{
+      if(nivel==null||nivel<lo||nivel>hi) return;
+      ctx.strokeStyle=color; ctx.lineWidth=Math.max(1,devicePixelRatio);
+      ctx.setLineDash([3*devicePixelRatio,4*devicePixelRatio]);
+      ctx.beginPath(); ctx.moveTo(0,y(nivel)); ctx.lineTo(areaW,y(nivel)); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle=color;
+      ctx.fillText(`${etq} ${fmt(nivel,dec)}`,6*devicePixelRatio,y(nivel)-3*devicePixelRatio);
+    });
+  }
 }
 
 function graficoCVD(){
@@ -411,10 +584,11 @@ function panelLibro(dec){
 }
 
 $("#refrescar").onclick = cargar;
-$("#par").onchange = cargar;
+$("#par").onchange = ()=>{ cargar(); cargarPrecio(); };
 $("#intervalo").onchange = cargar;
 window.addEventListener("resize", ()=>D&&pintar());
 setInterval(()=>{ if($("#auto").checked) cargar(); }, 20000);
+setInterval(()=>{ if($("#auto").checked && !document.hidden) cargarPrecio(); }, 3000);
 cargarPares().then(cargar).catch(e=>$("#estado").textContent="error: "+e.message);
 </script>
 </body>

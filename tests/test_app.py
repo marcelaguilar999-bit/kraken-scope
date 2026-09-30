@@ -41,6 +41,16 @@ class AnaliticaTests(unittest.TestCase):
         self.assertEqual(app.cuadrante(-0.01, 0.01)[0], "dinero nuevo vendiendo")
         self.assertEqual(app.cuadrante(-0.01, -0.01)[0], "liquidación de largos")
 
+    def test_precio_real_incluye_bid_ask_y_edad(self):
+        trades = [["101.5", "0.2", 999.5, "b"]]
+        libro = {"bids": [["101.0", "2", 999.7]],
+                 "asks": [["102.0", "3", 999.8]]}
+        p = app.resumen_precio_real(trades, libro, ahora=1000.0)
+        self.assertEqual(p["ultimo_trade"], 101.5)
+        self.assertEqual(p["medio"], 101.5)
+        self.assertAlmostEqual(p["edad_trade_ms"], 500.0)
+        self.assertAlmostEqual(p["edad_libro_ms"], 200.0)
+
 
 class PersistenciaTests(unittest.TestCase):
     def test_registro_oi_preserva_otros_simbolos(self):
@@ -79,6 +89,11 @@ class ApiTests(unittest.TestCase):
     def test_par_desconocido(self):
         with mock.patch.object(app, "kraken", return_value={"XXBTZUSD": {"wsname": "XBT/USD"}}):
             r = self.client.get("/api/mercado?par=NO_EXISTE&intervalo=5")
+        self.assertEqual(r.status_code, 400)
+
+    def test_precio_rechaza_par_desconocido(self):
+        with mock.patch.object(app, "kraken", return_value={"XXBTZUSD": {"wsname": "XBT/USD"}}):
+            r = self.client.get("/api/precio?par=NO_EXISTE")
         self.assertEqual(r.status_code, 400)
 
 

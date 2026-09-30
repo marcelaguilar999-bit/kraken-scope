@@ -10,7 +10,8 @@ cd ~/Herramientas/kraken-scope
 PYTHONPATH=~/Herramientas/pylibs python3 app.py
 ```
 
-Y abrir **http://127.0.0.1:8777**. Se actualiza solo cada 20 segundos.
+Y abrir **http://127.0.0.1:8777**. El precio ligero se actualiza cada 3 segundos y la analítica
+completa cada 20 segundos.
 
 ## No pide tu API key, y es a propósito
 
@@ -26,6 +27,8 @@ ese día llegue, el riesgo es cero.
 
 | Panel | Qué responde |
 |---|---|
+| **Precio real y latencia** | Último trade, bid, ask, medio, spread, mark del perpetuo, RTT del navegador, tiempo backend y edad del dato publicado. |
+| **Opciones técnicas** | Escenarios condicionales con confirmación, objetivo geométrico e invalidación. No ejecutan ni prometen el recorrido. |
 | **Por qué se está moviendo** | Una frase que encadena los hechos medidos: cuánto se movió, con cuánta participación, qué dice el posicionamiento y dónde está respecto al valor. |
 | **Perfil de volumen** | Dónde se negoció de verdad. El POC es el precio con más volumen; el área de valor cubre el 70% de la actividad. Fuera de esa banda hay poco negociado, y el precio suele moverse rápido. |
 | **Dónde poner el stop** | Distancias en múltiplos de ATR, y si cada una cae dentro o fuera del movimiento normal del par. |
@@ -63,6 +66,31 @@ Futures (también público):
 - **Alineación de medias 20/60/120.** Es un hecho, no una señal. Odette2 valida la confirmación
   multi-plazo en horizontes de días y semanas; en scalping no tiene valor predictivo demostrado,
   y así está etiquetado en la propia interfaz.
+- **Dow simplificado.** Compara los dos últimos máximos y mínimos locales confirmados. Dos altos
+  y dos bajos crecientes describen estructura alcista; ambos decrecientes, bajista. Si discrepan,
+  se etiqueta mixta. El objetivo es una extensión del último rango, no una predicción estadística.
+- **HCH/HCH invertido.** Exige cinco pivotes alternos, cabeza prominente y hombros semejantes.
+  Distingue “formándose” de “confirmado” según cruce de la clavicular. La calidad mostrada mide
+  solo simetría de precio/tiempo y nunca debe leerse como probabilidad de éxito.
+- **Mapa de volumen.** Compara el volumen aproximado del nivel actual con la mediana del perfil y
+  señala los nodos de volumen fuerte más cercanos por arriba y por abajo.
+
+El catálogo visible incluye ocho métodos o capas: Dow simplificado, HCH/HCH invertido, ruptura
+Donchian 20, pullback de medias 20/60/120, reingreso al área de valor, rotación entre nodos de
+volumen, delta/CVD agresor y muros/desequilibrio del libro. Los dos últimos son confirmaciones,
+no entradas autónomas. El tablero muestra todos aunque no haya setup, para que Marcel pueda
+elegir el enfoque, validar el contexto y ejecutar por su cuenta.
+
+## Qué significa la latencia
+
+- **RTT navegador:** tiempo real desde que la página solicita el snapshot hasta que recibe JSON.
+- **Backend:** tiempo empleado dentro de Flask, incluidas las consultas públicas a Kraken que no
+  salgan de caché.
+- **Edad del trade:** diferencia entre el timestamp del último trade y el momento de respuesta,
+  más el tramo observado fuera del backend.
+- **No es latencia unidireccional exacta:** para medirla harían falta relojes sincronizados con el
+  motor del exchange y un feed WebSocket. La pantalla separa las cantidades medibles y no las
+  mezcla bajo una sola cifra.
 
 ## La parte del stop, que es la que más te importa
 
@@ -98,6 +126,8 @@ quién es agresivo, dónde está la liquidez. Eso es lo que muestra.
 - La última vela de Kraken aún está abierta: aparece en el gráfico para mostrar el precio actual,
   pero no entra en ATR, perfil, participación ni estadísticas de stops.
 - `GET /api/salud` permite comprobar el servidor sin depender de que Kraken esté disponible.
+- `GET /api/precio` entrega el snapshot ligero usado por el refresco de 3 segundos.
+- `technical.py` contiene detección de pivotes, estructura Dow simplificada, HCH y escenarios.
 
 ## Comprobar los cálculos
 

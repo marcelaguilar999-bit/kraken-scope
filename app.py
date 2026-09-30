@@ -32,6 +32,8 @@ import numpy as np
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 
+from technical import analizar_estructura
+
 app = Flask(__name__, static_folder="static", static_url_path="")
 KRAKEN = "https://api.kraken.com/0/public"
 KRAKEN_FUT = "https://futures.kraken.com/derivatives/api"
@@ -41,19 +43,24 @@ TIMEOUT = 15
 INTERVALOS = {1, 5, 15, 30, 60, 240, 1440, 10080, 21600}
 _cache = OrderedDict()
 _cache_lock = threading.RLock()
-CACHE_TTL = {"OHLC": 20, "Trades": 10, "Depth": 5, "AssetPairs": 3600, "Ticker": 5}
+CACHE_TTL = {"OHLC": 20, "Trades": 2, "Depth": 2, "AssetPairs": 3600, "Ticker": 2}
+
+
+def _cache_consultar(clave, ttl):
+    with _cache_lock:
+        if clave not in _cache:
+            return None, None
+        t, datos = _cache[clave]
+        edad = time.time() - t
+        if edad >= ttl:
+            del _cache[clave]
+            return None, None
+        _cache.move_to_end(clave)
+        return datos, edad
 
 
 def _cache_leer(clave, ttl):
-    with _cache_lock:
-        if clave not in _cache:
-            return None
-        t, datos = _cache[clave]
-        if time.time() - t >= ttl:
-            del _cache[clave]
-            return None
-        _cache.move_to_end(clave)
-        return datos
+    return _cache_consultar(clave, ttl)[0]
 
 
 def _cache_guardar(clave, datos):
@@ -64,12 +71,17 @@ def _cache_guardar(clave, datos):
             _cache.popitem(last=False)
 
 
-def kraken(endpoint, **params):
+def kraken(endpoint, _medicion=None, **params):
     """Llama a Kraken con caché corta, para no castigar la API al refrescar."""
+    inicio = time.perf_counter()
     clave = (endpoint, tuple(sorted(params.items())))
     ttl = CACHE_TTL.get(endpoint, 10)
-    datos = _cache_leer(clave, ttl)
+    datos, edad_cache = _cache_consultar(clave, ttl)
     if datos is not None:
+        if _medicion is not None:
+            _medicion.update({"cache": True,
+                              "duracion_ms": (time.perf_counter() - inicio) * 1000,
+                              "edad_cache_ms": edad_cache * 1000})
         return datos
     r = requests.get(f"{KRAKEN}/{endpoint}", params=params, timeout=TIMEOUT)
     r.raise_for_status()
@@ -78,11 +90,47 @@ def kraken(endpoint, **params):
         raise RuntimeError("; ".join(j["error"]))
     datos = j["result"]
     _cache_guardar(clave, datos)
+    if _medicion is not None:
+        _medicion.update({"cache": False,
+                          "duracion_ms": (time.perf_counter() - inicio) * 1000,
+                          "edad_cache_ms": 0.0})
     return datos
 
 
 def primera_clave(d):
     return next(k for k in d.keys() if k != "last")
+
+
+def resumen_precio_real(trades, libro, ticker24=None, ahora=None):
+    """Valores ejecutables y edad de la publicación más reciente disponible."""
+    ahora = ahora or time.time()
+    ultimo_trade = trades[-1] if trades else None
+    bid = libro.get("bids", [None])[0] if libro.get("bids") else None
+    ask = libro.get("asks", [None])[0] if libro.get("asks") else None
+    bid_p = float(bid[0]) if bid else None
+    ask_p = float(ask[0]) if ask else None
+    trade_ts = float(ultimo_trade[2]) if ultimo_trade else None
+    tiempos_libro = [float(x[2]) for x in (bid, ask) if x and len(x) > 2]
+    libro_ts = max(tiempos_libro) if tiempos_libro else None
+    ticker_last = None
+    if ticker24:
+        try:
+            ticker_last = float(ticker24["c"][0])
+        except (KeyError, TypeError, ValueError):
+            pass
+    return {
+        "ultimo_trade": float(ultimo_trade[0]) if ultimo_trade else None,
+        "ultimo_trade_ts": trade_ts,
+        "bid": bid_p, "ask": ask_p,
+        "medio": (bid_p + ask_p) / 2 if bid_p is not None and ask_p is not None else None,
+        "ticker_last": ticker_last,
+        "spread": ask_p - bid_p if bid_p is not None and ask_p is not None else None,
+        "spread_pct": ((ask_p - bid_p) / ((ask_p + bid_p) / 2)
+                       if bid_p is not None and ask_p is not None and ask_p + bid_p else None),
+        "edad_trade_ms": max(0.0, (ahora - trade_ts) * 1000) if trade_ts else None,
+        "edad_libro_ms": max(0.0, (ahora - libro_ts) * 1000) if libro_ts else None,
+        "servidor_ts": ahora,
+    }
 
 
 # ---------------------------------------------------------------- analítica
@@ -480,8 +528,38 @@ def pares():
     return jsonify(lista)
 
 
+@app.route("/api/precio")
+def precio():
+    """Snapshot ligero para refrescar precio/latencia sin recalcular la analítica."""
+    inicio_backend = time.perf_counter()
+    par = request.args.get("par", "XXBTZUSD").strip()
+    try:
+        pares_disponibles = kraken("AssetPairs")
+        if par not in pares_disponibles:
+            return jsonify({"error": "Par de mercado desconocido."}), 400
+        mediciones = {"trades": {}, "libro": {}}
+        d_tr = kraken("Trades", _medicion=mediciones["trades"], pair=par, count=1)
+        trades = d_tr[primera_clave(d_tr)]
+        d_bk = kraken("Depth", _medicion=mediciones["libro"], pair=par, count=1)
+        libro = d_bk[primera_clave(d_bk)]
+        ahora = time.time()
+        real = resumen_precio_real(trades, libro, ahora=ahora)
+        return jsonify({
+            "par": par, "precio_real": real,
+            "latencia": {
+                "backend_ms": (time.perf_counter() - inicio_backend) * 1000,
+                "endpoints": mediciones,
+                "nota": ("RTT del navegador y tiempo backend son medidos; la edad del trade "
+                         "depende del reloj local y no equivale a latencia de red unidireccional."),
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/mercado")
 def mercado():
+    inicio_backend = time.perf_counter()
     par = request.args.get("par", "XXBTZUSD").strip()
     try:
         intervalo = int(request.args.get("intervalo", 5))
@@ -496,16 +574,17 @@ def mercado():
         wsname = pares_disponibles[par].get("wsname", "")
         base = wsname.split("/", 1)[0] if "/" in wsname else ""
 
-        d_ohlc = kraken("OHLC", pair=par, interval=intervalo)
+        mediciones = {"ohlc": {}, "trades": {}, "libro": {}, "ticker": {}}
+        d_ohlc = kraken("OHLC", _medicion=mediciones["ohlc"], pair=par, interval=intervalo)
         clave = primera_clave(d_ohlc)
         crudas = d_ohlc[clave]
         velas = [{"t": int(c[0]), "open": float(c[1]), "high": float(c[2]),
                   "low": float(c[3]), "close": float(c[4]), "vwap": float(c[5]),
                   "volume": float(c[6]), "n": int(c[7])} for c in crudas]
 
-        d_tr = kraken("Trades", pair=par, count=1000)
+        d_tr = kraken("Trades", _medicion=mediciones["trades"], pair=par, count=1000)
         trades = d_tr[primera_clave(d_tr)]
-        d_bk = kraken("Depth", pair=par, count=100)
+        d_bk = kraken("Depth", _medicion=mediciones["libro"], pair=par, count=100)
         libro = d_bk[primera_clave(d_bk)]
 
         if len(velas) < 30:
@@ -517,7 +596,7 @@ def mercado():
         bajos = [v["low"] for v in velas_cerradas]
         cierres = [v["close"] for v in velas_cerradas]
         atr_actual, serie_atr = atr(altos, bajos, cierres)
-        ultimo = velas[-1]["close"]
+        ultimo = float(trades[-1][0]) if trades else velas[-1]["close"]
 
         # régimen de volatilidad: el ATR de ahora contra su propia historia
         atr_pct = [a / c for a, c in zip(serie_atr, cierres[1:]) if c] if serie_atr else []
@@ -530,13 +609,14 @@ def mercado():
 
         # ----- ticker de 24 h -----
         try:
-            d_tk = kraken("Ticker", pair=par)
+            d_tk = kraken("Ticker", _medicion=mediciones["ticker"], pair=par)
             ticker24 = d_tk[primera_clave(d_tk)]
         except Exception:
             ticker24 = None
 
         # ----- análisis técnico (descriptivo) -----
         tec = analisis_tecnico(velas_cerradas, perfil, atr_actual, ultimo, ticker24)
+        estructura = analizar_estructura(velas_cerradas, perfil, ultimo, atr_actual)
 
         # ----- beta contra BTC -----
         if base.upper() not in ("XBT", "BTC"):
@@ -581,12 +661,25 @@ def mercado():
             except Exception as e:
                 fund = {"error": str(e)}
 
+        ahora_respuesta = time.time()
+        precio_real = resumen_precio_real(trades, libro, ticker24, ahora_respuesta)
+        if fund and "error" not in fund:
+            precio_real["mark_perpetuo"] = mark
+            precio_real["indice_perpetuo"] = index
         return jsonify({
             "tecnico": tec,
+            "estructura": estructura,
             "fundamental": fund,
             "porque": narrativa(base or par, tec, fund if fund and "error" not in fund else None, ticker24),
             "par": par, "intervalo": intervalo, "velas": velas[-240:],
             "ultimo": ultimo,
+            "precio_real": precio_real,
+            "latencia": {
+                "backend_ms": (time.perf_counter() - inicio_backend) * 1000,
+                "endpoints": mediciones,
+                "nota": ("RTT del navegador y tiempo backend son medidos; la edad del trade "
+                         "depende del reloj local y no equivale a latencia de red unidireccional."),
+            },
             "atr": atr_actual,
             "atr_pct_precio": atr_actual / ultimo if ultimo else None,
             "vol_percentil": pctl_vol,
